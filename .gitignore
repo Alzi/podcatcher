@@ -1,0 +1,6 @@
+html/*
+logs/*
+database.db
+*.pyc
+testingFeedparser.py
+Lib/*
