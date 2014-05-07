@@ -5,7 +5,7 @@ podcatcher.py is a simple commandline tool to manage podcast feeds
 """
 
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from hashlib import sha256
 import urllib2
 import sys
@@ -104,6 +104,10 @@ STATUS_DOWNLOADED_POST = 0
 STATUS_NEW_POST = 1
 STATUS_OLDER_POST = 2
 
+#------------------------------------------- global variables --------------------------------------------
+
+verbose = False
+
 #------------------------------------------- -------------------------------------------------------------
 #------------------------------------------- class DB ----------------------------------------------------
 #------------------------------------------- -------------------------------------------------------------
@@ -157,11 +161,14 @@ class Logger(object):
 #------------------------------------------- -------------------------------------------------------------
 
 class Post(object):
-	"""Handle the data from one show
+	"""Handle data corresponding to one certain show
 	"""
 	def __init__(self, feedId):
+		"""initialize
+		"""
+		global verbose
 		self.feedId = feedId
-		self.has_audio = True
+		self.has_audio = False
 		self.id = None
 		self.title = "no-title"
 		self.subtitle = "no-subtitle"
@@ -171,9 +178,9 @@ class Post(object):
 		self.hash = None
 		self.status = None
 		
-		# self.daysOld = self._getDaysSincePublished()
-
 	def fromRssEntry(self, entry):
+		"""get data from rss-entry
+		"""
 		self.has_audio = False
 		self.entry = entry
 		self.title = self._getTitle()
@@ -183,9 +190,14 @@ class Post(object):
 		self.media_link = self._extractMediaLinks()	#FIXME: multiple Media-Links aren't handled
 		self.hash = self._getHash()
 		self.status = STATUS_NEW_POST
+		self.daysOld = self._getDaysSincePublished()
 
 	def fromDbRow(self, row):
+		"""get data from database-row
+		"""
+		self.has_audio = True
 		self.id, self.title, self.subtitle, self.author, self.published, self.media_link, self.hash, self.status = row
+		self.daysOld = self._getDaysSincePublished()
 
 	def download(self):
 		"""download media to hard drive
@@ -244,8 +256,7 @@ class Post(object):
 		"""
 		if self.media_link:
 			if not self.is_saved():
-				print "Writing post to db: %s" % makePrintable(self.title)
-				self.daysOld = self._getDaysSincePublished()
+				print "New post. %s" % makePrintable(self.title)
 				with DB() as dbHandler:
 					if self.daysOld > DAYS_OLDER_POST:
 						status = STATUS_OLDER_POST
@@ -262,7 +273,8 @@ class Post(object):
 			else:
 				pass
 		else:
-			print "this post has no audio file\n%s" % self.title
+			if verbose:
+				print "this post has no audio file\n%s" % self.title
 
 	def _getDaysSincePublished(self):
 		"""calculate days between today and date of publishing 
@@ -375,14 +387,13 @@ class Cast(object):
 		self.feedId = feedId
 		self.title = self._getTitle()
 		self.rss = None
+		self.allPosts = self._getAllPosts()
+		global verbose
 
-
+	def getLatestpost(self):
+		"""alias-function to get the single latest post
 		"""
-		def fromDbRow(self, row):
-		self.id, self.title, self.subtitle, 
-		self.author, self.published, 
-		self.media_link, self.hash, self.status = row
-		"""
+		return self.getLatestPosts()
 
 	def getLatestPosts(self, limit=1):
 		"""return the latest post as Post()
@@ -404,52 +415,58 @@ class Cast(object):
 			return post
 		return postList
 
-	# def showLatestPost(self):
-	# 	"""Helper function
-	# 	print out the latest post
-	# 	"""
-	# 	with DB() as dbHandler:
-	# 		result = dbHandler.sql(
-	# 			"SELECT id, title, published FROM shows WHERE feed_id=? AND status<>? ORDER BY published DESC LIMIT 1",
-	# 			(self.feedId,STATUS_DOWNLOADED_POST)
-	# 		)
-	# 	if result:
-	# 		newestPost = result[0]
-	# 		try:
-	# 			print "Published at %s:\n#%s: '%s'\n" % (
-	# 				makePrintable(newestPost[2]), newestPost[0], newestPost[1]
-	# 			)
-	# 		except:
-	# 			print "Encoding-problem couldn't print."
-	# 			raise
-	# 	else:
-	# 		print "No data."
-
 	def update(self):
 		"""Main-function to look for new posts.
 		"""
-		print "Updating %s..." % (self.title)
+		print "---------------------------------------\nUpdating %s..." % (self.title)
 		self.rss = self._fetchFeed()
 		numOfUpdates = 0
+
 		for entry in self.rss.entries:
 			post = Post(self.feedId)
 			post.fromRssEntry(entry)
-			if post.is_saved():
-				print "%s bereits gespeichert." % makePrintable(post.title)
-				post.update()
+			if self._isInsideDB(post):
+				if verbose:
+					print "%s bereits gespeichert." % makePrintable(post.title)
 			else:
-				print "New post: %s" % post.published
 				numOfUpdates += 1
 				post.save()
 		if not numOfUpdates:
 			print "Nothing new."
-		else:
-			now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-			with DB() as dbHandler:
-				dbHandler.sql(
-					"UPDATE casts SET last_updated=? WHERE id=?",
-					(now, self.feedId)
-				)
+
+		self._markOlderPosts()
+		self._updated()
+		
+	def _markOlderPosts(self):
+		then = now(DAYS_OLDER_POST)[1]
+		with DB() as dbHandler:
+			dbHandler.sql(
+				"UPDATE shows set status=? WHERE published <? AND feed_id=? AND status<>?",
+				(STATUS_OLDER_POST, then, self.feedId, STATUS_DOWNLOADED_POST)
+			)
+
+	def _updated(self):
+		"""update last_updated inside DB to now
+		"""
+		with DB() as dbHandler:
+			dbHandler.sql(
+				"UPDATE casts SET last_updated=? WHERE id=?",
+				(now()[1], self.feedId)
+			)
+
+	def _isInsideDB(self, post):
+		for t in self.allPosts:
+			if post.hash in t:
+				return True
+		return False
+
+	def _getAllPosts(self):
+		with DB() as dbHandler:
+			result = dbHandler.sql(
+				"SELECT id, hash FROM shows WHERE feed_id=?",
+				(self.feedId,)
+			)
+		return result
 
 	def _getMinutesSinceLastUpdate(self):
 		"""return minutes since last update
@@ -499,8 +516,11 @@ def string2DateTime(dtString):
 	"""
 	return datetime.strptime(dtString, "%Y-%m-%d %H:%M:%S")
 
-def now():
+def now(daysInThePast=0):
 	now = datetime.now()
+	if daysInThePast:
+		delta = timedelta(days=daysInThePast)
+		now -= delta
 	nowString = now.strftime("%Y-%m-%d %H:%M:%S")
 	return (now,nowString)
 
@@ -567,21 +587,6 @@ def downloadAudio(url, chunkSize=32768):
 		progressReport(bytesSoFar, chunkSize, totalSize)
 	return data
 
-#------------------------------------------- -------------------------------------------------------------
-#------------------------------------------- Helper Functions --------------------------------------------
-#------------------------------------------- -------------------------------------------------------------
-
-def updateAll():
-	"""update all podcasts with the status_flag
-	set to STATUS_UPDATE_CAST
-	"""
-	castsToUpdate = getPodcasts()
-	for data in castsToUpdate:
-		feedId = data[0]
-		if feedId > 11:
-			cast = Cast(feedId)
-			cast.update()
-
 def downloadLatest(feedId, number=1):
 	"""download the latest post, or number of 
 	posts from podcast with this feedId
@@ -597,6 +602,7 @@ def downloadLatest(feedId, number=1):
 def getNewPosts():
 	"""return all new that are not older than DAYS_OLDER_POST
 	"""
+	os.system('cls')
 	with DB() as dbHandler:
 		result = dbHandler.sql(
 			"SELECT P.title, P.published, F.title, F.id FROM shows AS P JOIN casts AS F ON F.id=P.feed_id WHERE P.status=? ORDER BY F.id, P.published",
@@ -608,6 +614,21 @@ def getNewPosts():
 			print "---------------------------------------\n%s(%s):" % (makePrintable(line[2]), line[3])
 			lastCast = line[2]
 		print "'%s'\n(%s)" % (makePrintable(line[0]), makePrintable(line[1]))
+
+def updateAll():
+	"""update all podcasts with the status_flag
+	set to STATUS_UPDATE_CAST
+	"""
+	os.system('cls')
+	castsToUpdate = getPodcasts()
+	for data in castsToUpdate:
+		feedId = data[0]
+		cast = Cast(feedId)
+		cast.update()
+
+#------------------------------------------- -------------------------------------------------------------
+#------------------------------------------- Helper Functions --------------------------------------------
+#------------------------------------------- -------------------------------------------------------------
 
 def createTableFeeds():
 	"""database-init: table casts
