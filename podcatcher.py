@@ -404,16 +404,20 @@ class Cast(object):
 				"SELECT id, title, subtitle, author, published, media_link, hash, status FROM shows WHERE feed_id=? AND status<>? ORDER BY published DESC LIMIT ?",
 				(self.feedId, STATUS_DOWNLOADED_POST, limit)
 			)
-		postList = []
-		for row in result:
-			post = Post(self.feedId)
-			post.fromDbRow(row)
-			postList.append(post)
-			print makePrintable(post.title)
-		if limit == 1:
-			post = postList[0]
-			return post
-		return postList
+		if result:
+			postList = []
+			for row in result:
+				post = Post(self.feedId)
+				post.fromDbRow(row)
+				postList.append(post)
+				print makePrintable(post.title)
+			if limit == 1:
+				post = postList[0]
+				return post
+			return postList
+		else:
+			print "No new posts."
+			return None
 
 	def update(self):
 		"""Main-function to look for new posts.
@@ -498,7 +502,10 @@ class Cast(object):
 				"SELECT title FROM casts WHERE id=?",
 				(self.feedId,)
 			)
-		return makePrintable(title[0][0])
+		if title:
+			return makePrintable(title[0][0])
+		else:
+			raise IndexError("Feed-id does not exist.")
 
 #------------------------------------------- -------------------------------------------------------------
 #-------------------------------------------------- functions --------------------------------------------
