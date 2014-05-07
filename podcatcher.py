@@ -129,6 +129,9 @@ class DB(object):
 		"""
 		self.conn.close()
 
+	def getLastId(self):
+		return self.cursor.lastrowid
+
 	def sql(self, sql, parameters=()):
 		"""execute query and return result if present.
 		"""
@@ -535,18 +538,17 @@ def addPodcast(url):
 	"""add a new feed-url to database
 	"""
 	try:
-		f = feedparser.parse(url)
+		cast = feedparser.parse(url)
 	except:
 		print ("Couldn't parse. (%s)" % url)
-	title = f.feed.title
-	now = datetime.now()
-	today = now.strftime("%Y-%m-%d %H:%M")
-	data = (None, title, url, today, STATUS_UPDATE_CAST)
 	with DB() as dbHandler:
 		dbHandler.sql(
-			"INSERT INTO casts VALUES (?,?,?,?,?)",
-			data
+			"INSERT INTO casts (title, url, last_updated, status) VALUES (?,?,?,?)",
+			(cast.feed.title, url, now()[1], STATUS_UPDATE_CAST)
 		)
+		feedId = dbHandler.getLastId()
+	cast = Cast(feedId)
+	cast.update()
 
 def getPodcasts():
 	"""Get (id, title, url) tuple-list from all active
@@ -637,7 +639,7 @@ def updateAll():
 #------------------------------------------- Helper Functions --------------------------------------------
 #------------------------------------------- -------------------------------------------------------------
 
-def createTableFeeds():
+def createTableCasts():
 	"""database-init: table casts
 	"""
 	with DB() as dbHandler:
