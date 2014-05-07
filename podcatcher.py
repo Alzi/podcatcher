@@ -83,7 +83,8 @@ AUDIO_MIME_TYPES = [
 ]
 
 KNOWN_MIME_TYPES = [
-"text/html"
+"text/html",
+"video/mpeg"
 ]
 
 #set STATUS_OLDER_POST if post is > this days old
@@ -158,27 +159,40 @@ class Logger(object):
 class Post(object):
 	"""Handle the data from one show
 	"""
-	def __init__(self, entry, feedId):
-		self.entry = entry
+	def __init__(self, feedId):
 		self.feedId = feedId
-		self.has_audio = False
+		self.has_audio = True
+		self.id = None
+		self.title = "no-title"
+		self.subtitle = "no-subtitle"
+		self.author = "no-author"
+		self.published = ""
+		self.media_link = ""
+		self.hash = None
+		self.status = None
+		
+		# self.daysOld = self._getDaysSincePublished()
 
+	def fromRssEntry(self, entry):
+		self.has_audio = False
+		self.entry = entry
 		self.title = self._getTitle()
 		self.subtitle = self._getSubtitle()
 		self.author = self._getAuthor()
 		self.published = self._getPublished()
-		self.url = self._extractMediaLinks()	#FIXME: multiple Media-Links aren't handled
+		self.media_link = self._extractMediaLinks()	#FIXME: multiple Media-Links aren't handled
 		self.hash = self._getHash()
+		self.status = STATUS_NEW_POST
 
-		self.daysOld = self._getDaysSincePublished()
+	def fromDbRow(self, row):
+		self.id, self.title, self.subtitle, self.author, self.published, self.media_link, self.hash, self.status = row
 
 	def download(self):
 		"""download media to hard drive
 		"""
-		url = self.mediaLinks[0][0]
-		filename = os.path.basename(url)
+		filename = os.path.basename(self.media_link)
 		if not filename in os.listdir(MEDIA_PATH):
-			data = downloadAudio(url)
+			data = downloadAudio(self.media_link)
 			path = os.path.join(MEDIA_PATH,filename)
 			with open (path,"wb") as fh:
 				fh.write(data)
@@ -203,13 +217,13 @@ class Post(object):
 				except:
 					print "Couldn't tag audio-file."
 				else:
-					audio[u"PODCAST_STATUS"] = u"new"
+					audio["PODCAST_STATUS"] = "new"
 					audio.save()
 			else:
 				audio['----:com.apple.iTunes:PODCAST_STATUS'] = "new"
 				audio.save()
 		else:
-			audio.add(TXXX(encoding=3,desc=u"PODCAST_STATUS",text=u"new"))
+			audio.add(TXXX(encoding=3,desc="PODCAST_STATUS",text="new"))
 			audio.save()
 
 	def is_saved(self):
@@ -221,15 +235,17 @@ class Post(object):
 				(self.feedId, self.hash)
 			)
 		if result:
+			self.id = result[0][0]
 			return True
 		return False
 
 	def save(self):
 		"""save post to database
 		"""
-		if self.url:
+		if self.media_link:
 			if not self.is_saved():
 				print "Writing post to db: %s" % makePrintable(self.title)
+				self.daysOld = self._getDaysSincePublished()
 				with DB() as dbHandler:
 					if self.daysOld > DAYS_OLDER_POST:
 						status = STATUS_OLDER_POST
@@ -239,12 +255,12 @@ class Post(object):
 						"INSERT INTO shows VALUES (?,?,?,?,?,?,?,?,?)",
 						(
 							None, self.feedId, self.title, self.subtitle, 
-							self.author, self.url, self.published, 
+							self.author, self.media_link, self.published, 
 							status, self.hash
 						)
 					)
 			else:
-				print "allready in db."
+				pass
 		else:
 			print "this post has no audio file\n%s" % self.title
 
@@ -255,6 +271,17 @@ class Post(object):
 		published = string2DateTime(self.published)
 		diff = today-published
 		return diff.days
+
+	def update(self):
+		if self.daysOld > DAYS_OLDER_POST:
+			status = STATUS_OLDER_POST
+		else:
+			status = STATUS_NEW_POST
+		with DB() as dbHandler:
+			dbHandler.sql(
+				"UPDATE shows SET status=? WHERE id=? AND status<>?",
+				(status, self.id, STATUS_DOWNLOADED_POST)
+			)
 
 	def _setStatusDownloaded(self):
 		"""set the status_flag inside database to STATUS_DOWNLOADED_POST
@@ -268,17 +295,17 @@ class Post(object):
 	def _getTitle(self):
 		"""Get title-data from feed-entry.
 		"""
-		if self.entry.title:
+		try:
 			return self.entry.title
-		else:
+		except:
 			return u"no-title"
 
 	def _getSubtitle(self):
 		"""Get subtitle-data from feed-entry.
 		"""
-		if self.entry.subtitle:
+		try:
 			return self.entry.subtitle
-		else:
+		except:
 			return u"no-subtitle"
 
 	def _extractMediaLinks(self):
@@ -321,9 +348,9 @@ class Post(object):
 	def _getAuthor(self):
 		"""Get author-data from feed-entry.
 		"""
-		if self.entry.author:
+		try:
 			return self.entry.author
-		else:
+		except:
 			return u'no author'
 
 	def _getHash(self):
@@ -349,33 +376,54 @@ class Cast(object):
 		self.title = self._getTitle()
 		self.rss = None
 
-	def getLatestPost(self):
+
+		"""
+		def fromDbRow(self, row):
+		self.id, self.title, self.subtitle, 
+		self.author, self.published, 
+		self.media_link, self.hash, self.status = row
+		"""
+
+	def getLatestPosts(self, limit=1):
 		"""return the latest post as Post()
 		"""
-		if not self.rss:
-			self.rss = self._fetchFeed()
-		return Post(self.rss.entries[0], self.feedId)
-
-	def showLatestPost(self):
-		"""Helper function
-		print out the latest post
-		"""
+		post = Post(self.feedId)
 		with DB() as dbHandler:
 			result = dbHandler.sql(
-				"SELECT id, title, published FROM shows WHERE feed_id=? AND status<>? ORDER BY published DESC LIMIT 1",
-				(self.feedId,STATUS_DOWNLOADED_POST)
+				"SELECT id, title, subtitle, author, published, media_link, hash, status FROM shows WHERE feed_id=? AND status<>? ORDER BY published DESC LIMIT ?",
+				(self.feedId, STATUS_DOWNLOADED_POST, limit)
 			)
-		if result:
-			newestPost = result[0]
-			try:
-				print "Published at %s:\n#%s: '%s'\n" % (
-					makePrintable(newestPost[2]), newestPost[0], newestPost[1]
-				)
-			except:
-				print "Encoding-problem couldn't print."
-				raise
-		else:
-			print "No data."
+		postList = []
+		for row in result:
+			post = Post(self.feedId)
+			post.fromDbRow(row)
+			postList.append(post)
+			print makePrintable(post.title)
+		if limit == 1:
+			post = postList[0]
+			return post
+		return postList
+
+	# def showLatestPost(self):
+	# 	"""Helper function
+	# 	print out the latest post
+	# 	"""
+	# 	with DB() as dbHandler:
+	# 		result = dbHandler.sql(
+	# 			"SELECT id, title, published FROM shows WHERE feed_id=? AND status<>? ORDER BY published DESC LIMIT 1",
+	# 			(self.feedId,STATUS_DOWNLOADED_POST)
+	# 		)
+	# 	if result:
+	# 		newestPost = result[0]
+	# 		try:
+	# 			print "Published at %s:\n#%s: '%s'\n" % (
+	# 				makePrintable(newestPost[2]), newestPost[0], newestPost[1]
+	# 			)
+	# 		except:
+	# 			print "Encoding-problem couldn't print."
+	# 			raise
+	# 	else:
+	# 		print "No data."
 
 	def update(self):
 		"""Main-function to look for new posts.
@@ -384,11 +432,13 @@ class Cast(object):
 		self.rss = self._fetchFeed()
 		numOfUpdates = 0
 		for entry in self.rss.entries:
-			post = Post(entry, self.feedId, True)
+			post = Post(self.feedId)
+			post.fromRssEntry(entry)
 			if post.is_saved():
-				break;
+				print "%s bereits gespeichert." % makePrintable(post.title)
+				post.update()
 			else:
-				print "New post: %s" % (post.published)
+				print "New post: %s" % post.published
 				numOfUpdates += 1
 				post.save()
 		if not numOfUpdates:
@@ -532,6 +582,18 @@ def updateAll():
 			cast = Cast(feedId)
 			cast.update()
 
+def downloadLatest(feedId, number=1):
+	"""download the latest post, or number of 
+	posts from podcast with this feedId
+	"""
+	cast = Cast(feedId)
+	posts = cast.getLatestPosts(number)
+	if number == 1:
+		posts.download()
+	else:
+		for post in posts:
+			post.download()
+
 def getNewPosts():
 	"""return all new that are not older than DAYS_OLDER_POST
 	"""
@@ -568,11 +630,7 @@ def createTableShows():
 		)
 
 def main():
-	casts = getPodcasts
-	for cast in casts:
-		feedId = cast[0]
-		title = cast[1]
+	pass
 
 if __name__ == '__main__':
-	# createTableShows()
-	updateAll()
+	main()
