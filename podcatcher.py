@@ -390,7 +390,7 @@ class Cast(object):
 		self.allPosts = self._getAllPosts()
 		global verbose
 
-	def getLatestpost(self):
+	def getLatestPost(self):
 		"""alias-function to get the single latest post
 		"""
 		return self.getLatestPosts()
