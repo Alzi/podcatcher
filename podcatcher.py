@@ -7,6 +7,7 @@ podcatcher.py is a simple commandline tool to manage podcast feeds
 import sqlite3
 from datetime import datetime, timedelta
 from hashlib import sha256
+from thread import start_new_thread, allocate_lock
 import urllib2
 import sys
 import os
@@ -107,7 +108,10 @@ STATUS_OLDER_POST = 2
 #------------------------------------------- global variables --------------------------------------------
 
 verbose = False
-
+lock = allocate_lock()
+update_result = {}
+thread_started = False
+num_of_threads = 0
 #------------------------------------------- -------------------------------------------------------------
 #------------------------------------------- class DB ----------------------------------------------------
 #------------------------------------------- -------------------------------------------------------------
@@ -259,7 +263,7 @@ class Post(object):
 		"""
 		if self.media_link:
 			if not self.is_saved():
-				print "New post. %s" % makePrintable(self.title)
+				# print "New post. %s" % makePrintable(self.title)
 				with DB() as dbHandler:
 					if self.daysOld > DAYS_OLDER_POST:
 						status = STATUS_OLDER_POST
@@ -273,11 +277,11 @@ class Post(object):
 							status, self.hash
 						)
 					)
-			else:
-				pass
-		else:
-			if verbose:
-				print "this post has no audio file\n%s" % self.title
+			# else:
+			# 	pass
+		# else:
+		# 	if verbose:
+		# 		print "this post has no audio file\n%s" % self.title
 
 	def _getDaysSincePublished(self):
 		"""calculate days between today and date of publishing 
@@ -425,24 +429,39 @@ class Cast(object):
 	def update(self):
 		"""Main-function to look for new posts.
 		"""
-		print "---------------------------------------\nUpdating %s..." % (self.title)
+		global lock, update_result, thread_started, num_of_threads
+
+		lock.acquire()
+		update_result[self.feedId] = {}
+		update_result[self.feedId]['title'] = self.title
+		update_result[self.feedId]['posts'] = []
+		thread_started = True
+		num_of_threads += 1
+		lock.release()
+
 		self.rss = self._fetchFeed()
 		numOfUpdates = 0
 
 		for entry in self.rss.entries:
 			post = Post(self.feedId)
 			post.fromRssEntry(entry)
-			if self._isInsideDB(post):
-				if verbose:
-					print "%s bereits gespeichert." % makePrintable(post.title)
-			else:
+			if not self._isInsideDB(post):
 				numOfUpdates += 1
 				post.save()
+				lock.acquire()
+				update_result[self.feedId]['posts'].append(makePrintable("(%s):%s"%(post.id, post.title)))
+				lock.release()
 		if not numOfUpdates:
-			print "Nothing new."
+			lock.acquire()
+			update_result[self.feedId]['posts'] = None
+			lock.release()
 
 		self._markOlderPosts()
 		self._updated()
+		lock.acquire()
+		num_of_threads -= 1
+		sys.stdout.write(".")
+		lock.release()
 		
 	def _markOlderPosts(self):
 		then = now(DAYS_OLDER_POST)[1]
@@ -624,16 +643,39 @@ def getNewPosts():
 			lastCast = line[2]
 		print "'%s'\n(%s)" % (makePrintable(line[0]), makePrintable(line[1]))
 
+
 def updateAll():
 	"""update all podcasts with the status_flag
 	set to STATUS_UPDATE_CAST
 	"""
+	global update_result, thread_started, num_of_threads
 	os.system('cls')
+	sys.stdout.write("updating podcasts")
 	castsToUpdate = getPodcasts()
+	allThreads = []
 	for data in castsToUpdate:
 		feedId = data[0]
 		cast = Cast(feedId)
-		cast.update()
+		start_new_thread(cast.update,())
+
+	while not thread_started:
+		pass
+
+	while num_of_threads > 0:
+		pass
+
+	sys.stdout.write("ready.\n")
+	print_results_to_screen()
+
+def print_results_to_screen():
+	global update_result
+	for index in sorted(update_result):
+		if update_result[index]['posts']:
+			print "----------------------------------\n%s" % update_result[index]['title']
+			for postTitle in update_result[index]['posts']:
+				print postTitle
+
+	
 
 #------------------------------------------- -------------------------------------------------------------
 #------------------------------------------- Helper Functions --------------------------------------------
@@ -663,4 +705,4 @@ def main():
 	pass
 
 if __name__ == '__main__':
-	main()
+	updateAll()
