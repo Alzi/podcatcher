@@ -1,6 +1,6 @@
 html/*
 logs/*
-database.db
+*.db
 *.pyc
 testingFeedparser.py
 Lib/*
