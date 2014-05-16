@@ -712,7 +712,7 @@ def print_results_to_screen():
     global update_result
     for index in sorted(update_result):
         if update_result[index]['posts']:
-            print "----------------------------------\n%s" % update_result[index]['title']
+            print "----------------------------------\n(%d)%s" % (index, update_result[index]['title'])
             for postTitle in update_result[index]['posts']:
                 print postTitle
 
