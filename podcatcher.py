@@ -597,6 +597,26 @@ def addPodcast(url):
     cast = Cast(feedId)
     cast.update()
 
+def removeCast(feedId):
+    """remove cast and it's posts from database
+    """
+    cast = Cast(feedId);
+    print "This will remove '%s' and %d posts from database." % (makePrintable(cast.title), len(cast.allPosts))
+    answer = raw_input("Continue? (y/n)")
+    if answer == 'y':
+        with DB() as dbHandler:
+            dbHandler.sql(
+                "DELETE FROM shows WHERE feed_id=?",
+                (feedId,)
+            )
+            dbHandler.sql(
+                "DELETE FROM casts WHERE id=?",
+                (feedId,)
+            )
+        print "deleted."
+    else:
+        print "ok, deletion canceled."
+
 def getPodcasts():
     """Get (id, title, url) tuple-list from all active
     podcasts from DB.
@@ -754,6 +774,7 @@ def main(args):
     parser.add_argument('-n', '--new', action="store_const", const="NEW", dest="new_posts", help='Lists new Shows')
     parser.add_argument('-l', '--list', action="store", dest="list_cast_id", help='List all posts of this CastId')
     parser.add_argument('-s', '--subscribe', action="store", dest="feed_url", help='Subscribe to the following XML feed.')
+    parser.add_argument('-r', '--remove', action="store", dest="rm_cast_id", help='Remove podcast with this id from database')
 
     # parser.add_argument('-un', '--unsubscribe', action="store", dest="unsub_url", help='Unsubscribe from the following Podcast feed')
     # parser.add_argument('-ma', '--mail-add', action="store", dest="mail_address_add", help='Add a mail address to mail subscription updates to')
@@ -784,6 +805,9 @@ def main(args):
             cast.listAll()
         else:
             "Cast with this name not found."
+    elif arguments.rm_cast_id:
+        removeCast(arguments.rm_cast_id)
+
 
 
 if __name__ == '__main__':
