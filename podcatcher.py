@@ -617,7 +617,7 @@ def removeCast(feedId):
     else:
         print "ok, deletion canceled."
 
-def getPodcasts():
+def get_active_podcasts():
     """Get (id, title, url) tuple-list from all active
     podcasts from DB.
     """
@@ -628,10 +628,10 @@ def getPodcasts():
         )
     return results
 
-def listPodcasts():
+def list_podcasts():
     """Print all podcasts to screen
     """
-    casts = getPodcasts()
+    casts = get_active_podcasts()
     for cast in casts:
         print "(%d) %s" % (cast[0], makePrintable(cast[1]))
 
@@ -682,6 +682,23 @@ def downloadLatest(feedId, number=1):
         for post in posts:
             post.download()
 
+def getCast(cast_id):
+    try:
+        feed_id = int(cast_id)
+    except ValueError:
+        feed_id = searchCast(cast_id)
+    if feed_id:
+        try:
+            cast = Cast(feed_id)
+        except IndexError:
+            print "No subscription with this cast-id."
+            return None
+        else:
+            return cast
+    else:
+        print "Cast with that name not found."
+        return None
+
 def searchCast(cast_name):
     with DB() as dbHandler:
         result = dbHandler.sql(
@@ -717,7 +734,7 @@ def updateAll():
     global update_result, thread_started, num_of_threads
     os.system('cls')
     sys.stdout.write("updating podcasts")
-    castsToUpdate = getPodcasts()
+    castsToUpdate = get_active_podcasts()
     allThreads = []
     for data in castsToUpdate:
         feedId = data[0]
@@ -769,12 +786,13 @@ def createTableShows():
 
 def main(args):
     parser = argparse.ArgumentParser(description='A command line Podcast downloader for RSS XML feeds')
-    parser.add_argument('-u', '--update', action="store_const", const="UPDATE", dest="update_casts", help='Update all current Podcast subscriptions')
-    parser.add_argument('-d', '--download', action="store", dest="dl_cast_id", help='Download the latest Show on this CastId')
-    parser.add_argument('-n', '--new', action="store_const", const="NEW", dest="new_posts", help='Lists new Shows')
-    parser.add_argument('-l', '--list', action="store", dest="list_cast_id", help='List all posts of this CastId')
+    parser.add_argument('-u', '--update', action="store_const", const="UPDATE", dest="update_casts", help='Update all current podcast subscriptions')
+    parser.add_argument('-d', '--download', action="store", dest="dl_cast_id", help='Download the latest show on this cast-id.')
+    parser.add_argument('-n', '--new', action="store_const", const="NEW", dest="new_posts", help='Lists new shows')
+    parser.add_argument('-l', '--list', action="store", dest="list_cast_id", help='List all posts of this cast-id or cast-name')
     parser.add_argument('-s', '--subscribe', action="store", dest="feed_url", help='Subscribe to the following XML feed.')
     parser.add_argument('-r', '--remove', action="store", dest="rm_cast_id", help='Remove podcast with this id from database')
+    parser.add_argument('-c', '--allcasts', action="store_const", const="ALLCASTS", dest="allcasts", help='List all podcast subscriptions.')
 
     # parser.add_argument('-un', '--unsubscribe', action="store", dest="unsub_url", help='Unsubscribe from the following Podcast feed')
     # parser.add_argument('-ma', '--mail-add', action="store", dest="mail_address_add", help='Add a mail address to mail subscription updates to')
@@ -796,19 +814,15 @@ def main(args):
     elif arguments.feed_url:
         addPodcast(arguments.feed_url)
     elif arguments.list_cast_id:
-        try :
-            id = int(arguments.list_cast_id)
-        except ValueError:
-            id = searchCast(arguments.list_cast_id)
-        if id:
-            cast = Cast(id)
+        cast = getCast(arguments.list_cast_id)
+        if cast:
             cast.listAll()
         else:
-            "Cast with this name not found."
+            "Cast with this id or name not found."
     elif arguments.rm_cast_id:
         removeCast(arguments.rm_cast_id)
-
-
+    elif arguments.allcasts:
+        list_podcasts()
 
 if __name__ == '__main__':
     main(sys.argv[1:])
