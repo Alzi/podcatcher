@@ -95,7 +95,7 @@ DAYS_OLDER_POST = 14
 #minutes that should be between update-attempts
 UPDATE_TIME = 120   
 
-DB_PATH = "database.db"
+DB_PATH = "C:/Users/Alzi/AppData/Roaming/podcatcher/database.db"
 LOG_PATH = "logs/"
 MEDIA_PATH = "C:/Daten/Foobar/Podcasts/"
 STATUS_UPDATE_CAST = 0
