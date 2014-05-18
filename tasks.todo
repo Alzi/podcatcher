@@ -1,0 +1,52 @@
+TODOs:
+ ☐ implement automatic download prozess
+ ☐ database: casts have the column 'filepath' -> not needed. sqlite3 has no DROP COLUMN -> make new table, copy data, rename
+ ✔ store every post that isn't a audio-file post into a different database table, to keep track of them @done (14-05-18 20:39)
+   ✔ determine: 'new table or same table with new status?' @done (14-05-18 20:39)
+ ✔ implement delete_cast(feed_id) @done (14-05-18 23:07)
+ ✔ implement option -c --showcasts @done (14-05-18 23:40)
+ ✔ db-path absolute? @done (14-05-18 23:59)
+
+ 
+
+BUGS:
+ ☐ mp3-files vom 'Fragen an den Autor' Podcast können nicht getagt werden.
+   ☐ SWR2 - Diskurs -> das Gleiche
+ ☐ in der datenbank sind jetzt einige nicht-audio-einträge als 'older' markiert -> kann ganz gut über den fehlenden media_link gefunden werden.
+
+
+  
+FEATURES(Ideas):
+ ✔ implement threads for updating podcasts @done (14-05-08 20:24)
+ ☐ implement threads for downloading podcasts (max 3)
+ ✔ make it a real command line tool (call from cmd, not from python) @done (14-05-18 20:40)
+    ✔ to do that, write module-functions to handle that, don't call Class-Methods @done (14-05-15 10:32)
+
+ ☐ insert the feed-image into the audio-file
+   ✔ read about it. it's part of ID3 @done (14-05-18 20:40)
+   ☐ can mutagen handle it?
+
+ ☐ make Videos downloadable
+
+NICE TO HAVEs:
+
+＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿
+Archive:
+ ✔ change addPodcats so that an update is called automatically @done (14-05-07 23:57) @project(TODOs)
+ ✔ Cast.getLatest() crashes, if there's no data inside database @done (14-05-07 23:12) @project(BUGS)
+ ✔ calling Cast() with an unknown feedId crashes @done (14-05-07 23:10) @project(BUGS)
+ ✔ make update status to OLDER_POST in one SQL @done (14-05-07 22:55) @project(TODOs)
+ ✔ implement a global variable 'verbose' that determines whether to print out stuff or not @done (14-05-07 22:54) @project(TODOs)
+ ✘ updateAll should only print out new entries and updates @cancelled (14-05-07 19:33) @project(TODOs)
+ ✘ rename stuff: Cast->Feed Post->Show ... @cancelled (14-05-07 18:47) @project(TODOs)
+ ✔ update-function of Cast() should change status to STATUS_OLDER_POST if neccessary @done (14-05-07 18:41) @project(TODOs)
+ ✔ thinking about that @done (14-05-07 14:35) @project(TODOs)
+ ✔ think about how to make Post-objects out of database infos (not rss) @done (14-05-07 14:34) @project(TODOs)
+ ✔ Cast.getLatestPost should exclude downloaded files @done (14-05-07 14:34) @project(TODOs)
+ ✔ check for author-data inside database (bug?) @done (14-04-30 12:35) @project(TODOs)
+  turns out, that not one author is inside the db. dough!
+
+ ✔ implement [ID-3]-Tagging @done (14-04-29 15:22) @project(TODOs)
+ ✔ write into databse only as STATUS_NEW if not older than 14 days @done (14-04-29 13:08) @project(TODOs)
+ ✔ think of further STATUS_FLAGS @done (14-04-29 12:37) @project(TODOs)
+ ✔ change the published-data into unicode-strings @done (14-04-29 10:32) @project(TODOs)

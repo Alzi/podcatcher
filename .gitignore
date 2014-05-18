@@ -2,5 +2,4 @@ html/*
 logs/*
 *.db
 *.pyc
-testingFeedparser.py
 Lib/*
