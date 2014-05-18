@@ -105,6 +105,7 @@ STATUS_ARCHIVED_CAST = 2
 STATUS_DOWNLOADED_POST = 0
 STATUS_NEW_POST = 1
 STATUS_OLDER_POST = 2
+STATUS_NO_AUDIO_POST = 3
 
 #------------------------------------------- global variables --------------------------------------------
 
@@ -262,27 +263,23 @@ class Post(object):
     def save(self):
         """save post to database
         """
-        if self.media_link:
-            if not self.is_saved():
-                # print "New post. %s" % makePrintable(self.title)
-                with DB() as dbHandler:
-                    if self.daysOld > DAYS_OLDER_POST:
-                        status = STATUS_OLDER_POST
-                    else:
-                        status = STATUS_NEW_POST
-                    dbHandler.sql (
-                        "INSERT INTO shows VALUES (?,?,?,?,?,?,?,?,?)",
-                        (
-                            None, self.feedId, self.title, self.subtitle, 
-                            self.author, self.media_link, self.published, 
-                            status, self.hash
-                        )
+        if not self.is_saved():
+            if not self.media_link:
+                status = STATUS_NO_AUDIO_POST;
+            elif self.daysOld > DAYS_OLDER_POST:
+                status = STATUS_OLDER_POST
+            else:
+                status = STATUS_NEW_POST
+            with DB() as dbHandler:
+                dbHandler.sql (
+                    "INSERT INTO shows VALUES (?,?,?,?,?,?,?,?,?)",
+                    (
+                        None, self.feedId, self.title, self.subtitle, 
+                        self.author, self.media_link, self.published, 
+                        status, self.hash
                     )
-            # else:
-            #   pass
-        # else:
-        #   if verbose:
-        #       print "this post has no audio file\n%s" % self.title
+                )
+                self.id = dbHandler.getLastId()
 
     def _getDaysSincePublished(self):
         """calculate days between today and date of publishing 
@@ -430,8 +427,8 @@ class Cast(object):
         post = Post(self.feedId)
         with DB() as dbHandler:
             result = dbHandler.sql(
-                "SELECT id, title, subtitle, author, published, media_link, hash, status FROM shows WHERE feed_id=? AND status<>? ORDER BY published DESC LIMIT ?",
-                (self.feedId, STATUS_DOWNLOADED_POST, limit)
+                "SELECT id, title, subtitle, author, published, media_link, hash, status FROM shows WHERE feed_id=? AND status<>? AND status <>? ORDER BY published DESC LIMIT ?",
+                (self.feedId, STATUS_DOWNLOADED_POST, STATUS_NO_AUDIO_POST, limit)
             )
         if result:
             postList = []
@@ -745,9 +742,9 @@ def createTableShows():
 def main(args):
     parser = argparse.ArgumentParser(description='A command line Podcast downloader for RSS XML feeds')
     parser.add_argument('-u', '--update', action="store_const", const="UPDATE", dest="update_casts", help='Update all current Podcast subscriptions')
-    parser.add_argument('-d', '--download', action="store", dest="dl_feed_id", help='Download the latest Show on this CastId')
-    parser.add_argument('-l', '--list', action="store_const", const="ALL", dest="list_subs", help='Lists new Shows')
-    parser.add_argument('-s', '--subscribe', action="store", dest="sub_feed_url", help='Subscribe to the following XML feed.')
+    parser.add_argument('-d', '--download', action="store", dest="dl_cast_id", help='Download the latest Show on this CastId')
+    parser.add_argument('-n', '--new', action="store_const", const="NEW", dest="new_posts", help='Lists new Shows')
+    parser.add_argument('-s', '--subscribe', action="store", dest="feed_url", help='Subscribe to the following XML feed.')
 
     # parser.add_argument('-un', '--unsubscribe', action="store", dest="unsub_url", help='Unsubscribe from the following Podcast feed')
     # parser.add_argument('-ma', '--mail-add', action="store", dest="mail_address_add", help='Add a mail address to mail subscription updates to')
@@ -762,12 +759,12 @@ def main(args):
     
     if arguments.update_casts:
         updateAll()
-    elif arguments.list_subs:
+    elif arguments.new_posts:
         getNewPosts()
-    elif arguments.dl_feed_id:
-        downloadLatest(arguments.dl_feed_id)
-    elif arguments.sub_feed_url:
-        addPodcast(arguments.sub_feed_url)
+    elif arguments.dl_cast_id:
+        downloadLatest(arguments.dl_cast_id)
+    elif arguments.feed_url:
+        addPodcast(arguments.feed_url)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
