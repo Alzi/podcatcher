@@ -402,17 +402,20 @@ class Cast(object):
         return self.getLatestPosts()
 
     def listAll(self):
+        print "------------ %s(%s) ------------\n" % (makePrintable(self.title), self.feedId)
         with DB() as dbHandler:
-            result = dbHandler.sql("SELECT id, title, published, status FROM shows WHERE feed_id=?",(self.feedId,))
+            result = dbHandler.sql("SELECT id, title, published, status FROM shows WHERE feed_id=? ORDER BY published DESC",(self.feedId,))
         for row in result:
             status = row[3]
             if status == STATUS_DOWNLOADED_POST:
                 status = "downloaded"
             elif status == STATUS_NEW_POST:
                 status = "new"
+            elif status == STATUS_NO_AUDIO_POST:
+                status = "no audio"
             else:
                 status = "older"
-            print "(%s) [%s] %s /'%s'" % (row[0], row[2], makePrintable(row[1]), status)
+            print "(%05d) [%s] %s /'%s'" % (row[0], row[2], makePrintable(row[1]), status)
 
     def getPost(self, post_id):
         with DB() as dbHandler:
@@ -488,8 +491,8 @@ class Cast(object):
         with DB() as dbHandler:
             dbHandler.sql(
                 "UPDATE shows set status=? WHERE published <? \
-                AND feed_id=? AND status<>?",
-                (STATUS_OLDER_POST, then, self.feedId, STATUS_DOWNLOADED_POST)
+                AND feed_id=? AND status<>? AND status <>?",
+                (STATUS_OLDER_POST, then, self.feedId, STATUS_DOWNLOADED_POST, STATUS_NO_AUDIO_POST)
             )
 
     def _updated(self):
@@ -500,12 +503,6 @@ class Cast(object):
                 "UPDATE casts SET last_updated=? WHERE id=?",
                 (now()[1], self.feedId)
             )
-
-    # def _isInsideDB(self, post):
-    #     for t in self.allPosts:
-    #         if post.hash in t:
-    #             return True
-    #     return False
 
     def _isInsideDB(self, post):
         if post.hash in self.allPosts.values():
@@ -665,6 +662,17 @@ def downloadLatest(feedId, number=1):
         for post in posts:
             post.download()
 
+def searchCast(cast_name):
+    with DB() as dbHandler:
+        result = dbHandler.sql(
+            "SELECT id FROM casts WHERE title LIKE ?",
+            ("%%%s%%" % cast_name, )
+        )
+        if result:
+            if len(result[0]) == 1:
+                return int(result[0][0])
+        return None
+
 def getNewPosts():
     """return all new that are not older than DAYS_OLDER_POST
     """
@@ -744,6 +752,7 @@ def main(args):
     parser.add_argument('-u', '--update', action="store_const", const="UPDATE", dest="update_casts", help='Update all current Podcast subscriptions')
     parser.add_argument('-d', '--download', action="store", dest="dl_cast_id", help='Download the latest Show on this CastId')
     parser.add_argument('-n', '--new', action="store_const", const="NEW", dest="new_posts", help='Lists new Shows')
+    parser.add_argument('-l', '--list', action="store", dest="list_cast_id", help='List all posts of this CastId')
     parser.add_argument('-s', '--subscribe', action="store", dest="feed_url", help='Subscribe to the following XML feed.')
 
     # parser.add_argument('-un', '--unsubscribe', action="store", dest="unsub_url", help='Unsubscribe from the following Podcast feed')
@@ -765,6 +774,17 @@ def main(args):
         downloadLatest(arguments.dl_cast_id)
     elif arguments.feed_url:
         addPodcast(arguments.feed_url)
+    elif arguments.list_cast_id:
+        try :
+            id = int(arguments.list_cast_id)
+        except ValueError:
+            id = searchCast(arguments.list_cast_id)
+        if id:
+            cast = Cast(id)
+            cast.listAll()
+        else:
+            "Cast with this name not found."
+
 
 if __name__ == '__main__':
     main(sys.argv[1:])
