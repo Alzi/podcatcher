@@ -238,18 +238,16 @@ class Post(object):
                 except:
                     print "Couldn't tag audio-file."
                 else:
-                    audio["PODCAST_STATUS"] = "new"
+                    # audio["PODCAST_STATUS"] = "new" #this fails with SR2
+                    audio["title"] = "new_podcast" #FIXME: this is only for testing -> if this doesn't fail ->use it in some sane way!
                     audio.save()
             else:
                 audio['----:com.apple.iTunes:PODCAST_STATUS'] = "new"
                 audio.save()
         else:
             audio.add(TXXX(encoding=3,desc="PODCAST_STATUS",text="new"))
-            try:
-                audio.save()
-            except:
-                print "Couldn't tag file."
-
+            audio.save()
+            
     def is_saved(self):
         """check if post is allready stored to database
         """
@@ -813,7 +811,12 @@ def main(args):
     elif arguments.new_posts:
         getNewPosts()
     elif arguments.dl_cast_id:
-        downloadLatest(arguments.dl_cast_id)
+        cast = getCast(arguments.dl_cast_id)
+        if cast:
+            post = cast.getLatestPosts(1)
+            post.download()
+        else:
+            "Cast with this id or name not found."
     elif arguments.feed_url:
         addPodcast(arguments.feed_url)
     elif arguments.list_cast_id:
@@ -827,5 +830,7 @@ def main(args):
     elif arguments.allcasts:
         list_podcasts()
 
+
 if __name__ == '__main__':
     main(sys.argv[1:])
+    
