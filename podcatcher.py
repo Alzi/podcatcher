@@ -245,7 +245,10 @@ class Post(object):
                 audio.save()
         else:
             audio.add(TXXX(encoding=3,desc="PODCAST_STATUS",text="new"))
-            audio.save()
+            try:
+                audio.save()
+            except:
+                print "Couldn't tag file."
 
     def is_saved(self):
         """check if post is allready stored to database
@@ -343,7 +346,7 @@ class Post(object):
                 log.write("New MimeType(s) found:\n%s" % newTypes)
         if not self.mediaLinks:
             self.has_audio = False
-            return None
+            return "no audio"
         else:
             return self.mediaLinks[0][0]
 
