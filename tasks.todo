@@ -1,29 +1,18 @@
 TODOs:
  ☐ implement automatic download prozess
- ☐ database: casts have the column 'filepath' -> not needed. sqlite3 has no DROP COLUMN -> make new table, copy data, rename
- ✔ store every post that isn't a audio-file post into a different database table, to keep track of them @done (14-05-18 20:39)
-   ✔ determine: 'new table or same table with new status?' @done (14-05-18 20:39)
- ✔ implement delete_cast(feed_id) @done (14-05-18 23:07)
- ✔ implement option -c --showcasts @done (14-05-18 23:40)
- ✔ db-path absolute? @done (14-05-18 23:59)
 
- 
 
 BUGS:
  ☐ mp3-files vom 'Fragen an den Autor' Podcast können nicht getagt werden.
    ☐ SWR2 - Diskurs -> das Gleiche
- ☐ in der datenbank sind jetzt einige nicht-audio-einträge als 'older' markiert -> kann ganz gut über den fehlenden media_link gefunden werden.
+   ☐ testing: audio[title]="new_podcatst" -> maby this'll work.
 
 
   
 FEATURES(Ideas):
- ✔ implement threads for updating podcasts @done (14-05-08 20:24)
  ☐ implement threads for downloading podcasts (max 3)
- ✔ make it a real command line tool (call from cmd, not from python) @done (14-05-18 20:40)
-    ✔ to do that, write module-functions to handle that, don't call Class-Methods @done (14-05-15 10:32)
 
  ☐ insert the feed-image into the audio-file
-   ✔ read about it. it's part of ID3 @done (14-05-18 20:40)
    ☐ can mutagen handle it?
 
  ☐ make Videos downloadable
@@ -32,6 +21,18 @@ NICE TO HAVEs:
 
 ＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿
 Archive:
+ ✔ played arround with mutagen.mp3.MP3 -> no result (bad docs imho) @done (14-05-19 13:32) @project(TODOs)
+ ✔ in der datenbank sind jetzt einige nicht-audio-einträge als 'older' markiert -> kann ganz gut über den fehlenden media_link gefunden werden. @done (14-05-19 13:31) @project(TODOs)
+ ✔ database: casts have the column 'filepath' -> not needed. sqlite3 has no DROP COLUMN -> make new table, copy data, rename @done (14-05-19 13:30) @project(TODOs)
+ ✔ db-path absolute? @done (14-05-18 23:59) @project(TODOs)
+ ✔ implement option -c --showcasts @done (14-05-18 23:40) @project(TODOs)
+ ✔ implement delete_cast(feed_id) @done (14-05-18 23:07) @project(TODOs)
+ ✔ read about it. it's part of ID3 @done (14-05-18 20:40) @project(TODOs)
+ ✔ make it a real command line tool (call from cmd, not from python) @done (14-05-18 20:40) @project(TODOs)
+ ✔ store every post that isn't a audio-file post into a different database table, to keep track of them @done (14-05-18 20:39) @project(TODOs)
+ ✔ determine: 'new table or same table with new status?' @done (14-05-18 20:39) @project(TODOs)
+ ✔ to do that, write module-functions to handle that, don't call Class-Methods @done (14-05-15 10:32) @project(TODOs / FEATURES(Ideas))
+ ✔ implement threads for updating podcasts @done (14-05-08 20:24) @project(TODOs)
  ✔ change addPodcats so that an update is called automatically @done (14-05-07 23:57) @project(TODOs)
  ✔ Cast.getLatest() crashes, if there's no data inside database @done (14-05-07 23:12) @project(BUGS)
  ✔ calling Cast() with an unknown feedId crashes @done (14-05-07 23:10) @project(BUGS)
