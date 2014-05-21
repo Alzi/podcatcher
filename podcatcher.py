@@ -16,6 +16,7 @@ import argparse
 
 from Lib import feedparser
 from mutagen.id3 import ID3, TXXX
+from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4
 from mutagen import File as mutagen_File
 
@@ -234,17 +235,27 @@ class Post(object):
                 audio = MP4(path)
             except:
                 try:
-                    audio = mutagen_File(path)
+                    audio = MP3(path)
                 except:
-                    print "Couldn't tag audio-file."
-                else:
-                    # audio["PODCAST_STATUS"] = "new" #this fails with SR2
-                    audio["title"] = "new_podcast" #FIXME: this is only for testing -> if this doesn't fail ->use it in some sane way!
-                    audio.save()
-            else:
+                    try:
+                        audio = mutagen_File(path)
+                    except:
+                        print "Couldn't tag audio-file."
+                    else: #mutagen_file
+                        audio["PODCAST_STATUS"] = "new"
+                        audio.save()
+                else: #MP3
+                    try:
+                        audio.add_tags()
+                    except mutagen.id3.error:
+                        pass
+                    else:
+                        audio.save()
+                        self._tagFile(path)
+            else:#MP4
                 audio['----:com.apple.iTunes:PODCAST_STATUS'] = "new"
                 audio.save()
-        else:
+        else:#ID3
             audio.add(TXXX(encoding=3,desc="PODCAST_STATUS",text="new"))
             audio.save()
             
@@ -755,10 +766,10 @@ def print_results_to_screen():
     global update_result
     for index in sorted(update_result):
         if update_result[index]['posts']:
-            print "----------------------------------\n(%d)%s" % (index, update_result[index]['title'])
+            print "-----------------------------------------\n(%d)%s" % (index, update_result[index]['title'])
             for postTitle in update_result[index]['posts']:
-                print postTitle
-
+                print "\t%s"%postTitle
+            print "-----------------------------------------\n"
     
 
 #------------------------------------------- -------------------------------------------------------------
@@ -833,4 +844,3 @@ def main(args):
 
 if __name__ == '__main__':
     main(sys.argv[1:])
-    
