@@ -16,6 +16,7 @@ import argparse
 
 from Lib import feedparser
 from mutagen.id3 import ID3, TXXX
+from mutagen.easyid3 import EasyID3
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4
 from mutagen import File as mutagen_File
@@ -110,7 +111,6 @@ STATUS_NO_AUDIO_POST = 3
 
 #------------------------------------------- global variables --------------------------------------------
 
-verbose = False
 lock = allocate_lock()
 update_result = {}
 thread_started = False
@@ -176,7 +176,6 @@ class Post(object):
     def __init__(self, feedId):
         """initialize
         """
-        global verbose
         self.feedId = feedId
         self.has_audio = False
         self.id = None
@@ -213,6 +212,7 @@ class Post(object):
         """download media to hard drive
         """
         filename = os.path.basename(self.media_link)
+        filename = filename.split('?')[0]
         if not filename in os.listdir(MEDIA_PATH):
             data = downloadAudio(self.media_link)
             path = os.path.join(MEDIA_PATH,filename)
@@ -227,6 +227,7 @@ class Post(object):
         """use mutagen to set (ID-3)-Tags inside audio file
         PODCAST_STATUS = new
         useful for foobar2000's dynamic-playlist function
+        FIXME: first determine filetype then try to tag it properly
         """
         try:
             audio = ID3(path)
@@ -235,22 +236,36 @@ class Post(object):
                 audio = MP4(path)
             except:
                 try:
-                    audio = MP3(path)
+                    audio = MP3(path, ID3=EasyID3)
                 except:
                     try:
                         audio = mutagen_File(path)
                     except:
                         print "Couldn't tag audio-file."
                     else: #mutagen_file
-                        audio["PODCAST_STATUS"] = "new"
-                        audio.save()
+                        try:
+                            audio.add_tags()
+                        except:
+                            pass
+                        try:
+                            audio["title"] = os.path.basename(path)
+                        except:
+                            print "Couldn't tag audio-file."
+                        else:
+                            try:
+                                audio['podcast_status'] = 'new'
+                                audio.save()
+                            except:
+                                self._tagFile(path)
                 else: #MP3
                     try:
                         audio.add_tags()
+                        audio['title'] = os.path.basename(path)
                     except mutagen.id3.error:
-                        pass
+                        print "Couldn't tag audio-file."
                     else:
                         audio.save()
+                        #TODO: Test if recursion could crash 13.06.2014
                         self._tagFile(path)
             else:#MP4
                 audio['----:com.apple.iTunes:PODCAST_STATUS'] = "new"
@@ -400,13 +415,13 @@ class Post(object):
 class Cast(object):
     """Handle all data corresponding to a cast
     """
-    def __init__(self, feedId):
+    def __init__(self, feedId=None):
         self.feedId = feedId
-        self.title = self._getTitle()
         self.rss = None
         self.allPosts = {}
-        self._getAllPosts()
-        global verbose
+        if self.feedId != None:
+            self.title = self._getTitle()
+            self._getAllPosts()
 
     def getLatestPost(self):
         """alias-function to get the single latest post
@@ -728,7 +743,7 @@ def getNewPosts():
     os.system('cls')
     with DB() as dbHandler:
         result = dbHandler.sql(
-            "SELECT P.title, P.published, F.title, F.id FROM shows AS P JOIN casts AS F ON F.id=P.feed_id WHERE P.status=? ORDER BY F.id, P.published",
+            "SELECT P.title, P.published, F.title, F.id, P.id FROM shows AS P JOIN casts AS F ON F.id=P.feed_id WHERE P.status=? ORDER BY F.id, P.published",
             (STATUS_NEW_POST,)
         )
     lastCast = ""
@@ -736,7 +751,7 @@ def getNewPosts():
         if lastCast != line[2]:
             print "---------------------------------------\n%s(%s):" % (makePrintable(line[2]), line[3])
             lastCast = line[2]
-        print "'%s'\n(%s)" % (makePrintable(line[0]), makePrintable(line[1]))
+        print "[%06d]'%s'\n(%s)" % (line[4], makePrintable(line[0]), makePrintable(line[1]))
 
 
 def updateAll():
@@ -805,6 +820,8 @@ def main(args):
     parser.add_argument('-s', '--subscribe', action="store", dest="feed_url", help='Subscribe to the following XML feed.')
     parser.add_argument('-r', '--remove', action="store", dest="rm_cast_id", help='Remove podcast with this id from database')
     parser.add_argument('-c', '--allcasts', action="store_const", const="ALLCASTS", dest="allcasts", help='List all podcast subscriptions.')
+    parser.add_argument('-g', '--getshow', action="store", dest="getshowID", help='Download show with this ID.')
+
 
     # parser.add_argument('-un', '--unsubscribe', action="store", dest="unsub_url", help='Unsubscribe from the following Podcast feed')
     # parser.add_argument('-ma', '--mail-add', action="store", dest="mail_address_add", help='Add a mail address to mail subscription updates to')
@@ -840,6 +857,11 @@ def main(args):
         removeCast(arguments.rm_cast_id)
     elif arguments.allcasts:
         list_podcasts()
+    elif arguments.getshowID:
+        print arguments.getshowID
+        post = Cast().getPost(int(arguments.getshowID))
+        post.download()
+        
 
 
 if __name__ == '__main__':
