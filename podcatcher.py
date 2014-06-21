@@ -196,7 +196,7 @@ class Post(object):
         self.subtitle = self._getSubtitle()
         self.author = self._getAuthor()
         self.published = self._getPublished()
-        self.media_link = self._extractMediaLinks() #FIXME: multiple Media-Links aren't handled
+        self.media_link = self._extractMediaLinks() #TODO: multiple Media-Links aren't handled
         self.hash = self._getHash()
         self.status = STATUS_NEW_POST
         self.daysOld = self._getDaysSincePublished()
@@ -545,15 +545,14 @@ class Cast(object):
         for row in result:
             self.allPosts[row[0]] = row[1]
 
-    def _getMinutesSinceLastUpdate(self):
-        """return minutes since last update
-        """
-        with DB() as dbHandler:
-            last_updated = dbHandler.sql(
-                "SELECT last_updated FROM casts WHERE feedId=?",
-                (self.feedId,))
-        last_updated = string2DateTime(last_updated[0][0])
-        #FIXME:finish!
+    # def _getMinutesSinceLastUpdate(self):
+    #     """return minutes since last update
+    #     """
+    #     with DB() as dbHandler:
+    #         last_updated = dbHandler.sql(
+    #             "SELECT last_updated FROM casts WHERE feedId=?",
+    #             (self.feedId,))
+    #     last_updated = string2DateTime(last_updated[0][0])
 
     def _fetchFeed(self):
         """Use feedparser module to get the feed-data
