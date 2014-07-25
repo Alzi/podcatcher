@@ -383,7 +383,7 @@ class Post(object):
             published = u'no date'
         else:
             published = published.split()
-            oldString = "%s %s %s %s %s" % (published[0],published[1],published[2],published[3],published[4])
+            oldString = "%s %s %s %s %s" % (published[0],published[1],published[2][:3],published[3],published[4])
             date = datetime.strptime( oldString, "%a, %d %b %Y %H:%M:%S" )
             newString = date.strftime("%Y-%m-%d %H:%M:%S")
             published = unicode(newString)
@@ -491,8 +491,12 @@ class Cast(object):
         numOfUpdates = 0
 
         for entry in self.rss.entries:
-            post = Post(self.feedId)
-            post.fromRssEntry(entry)
+            try:
+                post = Post(self.feedId)
+                post.fromRssEntry(entry)
+            except:
+                print ("{}creating Post failed [{}]".format("\n", self.feedId))
+                print (sys.exc_info())
             if not self._isInsideDB(post):
                 numOfUpdates += 1
                 post.save()
