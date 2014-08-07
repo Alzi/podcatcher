@@ -97,7 +97,7 @@ DAYS_OLDER_POST = 14
 #minutes that should be between update-attempts
 UPDATE_TIME = 120   
 
-DB_PATH = "C:/Users/Alzi/AppData/Roaming/podcatcher/database.db"
+DB_PATH = "database.db"
 LOG_PATH = "logs/"
 MEDIA_PATH = "C:/Daten/Foobar/Podcasts/"
 STATUS_UPDATE_CAST = 0
@@ -499,8 +499,8 @@ class Cast(object):
                 print (sys.exc_info())
             if not self._isInsideDB(post):
                 numOfUpdates += 1
-                post.save()
                 lock.acquire()
+                post.save()
                 update_result[self.feedId]['posts'].append(
                     makePrintable("(%s):%s"%(post.id, post.title))
                 )
