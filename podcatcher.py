@@ -14,12 +14,13 @@ import os
 import re
 import argparse
 
-from Lib import feedparser
 from mutagen.id3 import ID3, TXXX
 from mutagen.easyid3 import EasyID3
 from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4
 from mutagen import File as mutagen_File
+
+from Lib import feedparser
 
 __author__ = "Marc Wesemeier, Wackernheim, Germany"
 __date__ = "2014-04-17"
@@ -97,7 +98,7 @@ DAYS_OLDER_POST = 14
 #minutes that should be between update-attempts
 UPDATE_TIME = 120   
 
-DB_PATH = "database.db"
+DB_PATH = "C:/Daten/Projekte/Python-Projekte/podcatcher/src/database.db"
 LOG_PATH = "logs/"
 MEDIA_PATH = "C:/Daten/Foobar/Podcasts/"
 STATUS_UPDATE_CAST = 0
@@ -227,7 +228,6 @@ class Post(object):
         """use mutagen to set (ID-3)-Tags inside audio file
         PODCAST_STATUS = new
         useful for foobar2000's dynamic-playlist function
-        FIXME: first determine filetype then try to tag it properly
         """
         try:
             audio = ID3(path)
@@ -256,7 +256,7 @@ class Post(object):
                                 audio['podcast_status'] = 'new'
                                 audio.save()
                             except:
-                                self._tagFile(path)
+                                print "Couldn't tag audio-file."
                 else: #MP3
                     try:
                         audio.add_tags()
@@ -265,8 +265,10 @@ class Post(object):
                         print "Couldn't tag audio-file."
                     else:
                         audio.save()
-                        #TODO: Test if recursion could crash 13.06.2014
+                        #now it should be taggable by ID3-class
                         self._tagFile(path)
+                        #TODO: Test if recursion could crash 13.06.2014
+                        #not yet crashed 10.08.2014
             else:#MP4
                 audio['----:com.apple.iTunes:PODCAST_STATUS'] = "new"
                 audio.save()
@@ -536,6 +538,8 @@ class Cast(object):
             )
 
     def _isInsideDB(self, post):
+        # TODO: implement update-activity on site 
+        # (same date, changed title; same title changed date)
         if post.hash in self.allPosts.values():
             return True
         return False
@@ -611,7 +615,7 @@ def now(daysInThePast=0):
     nowString = now.strftime("%Y-%m-%d %H:%M:%S")
     return (now,nowString)
 
-def addPodcast(url):
+def addPodcast(url, shortname):
     """add a new feed-url to database
     """
     try:
@@ -620,8 +624,8 @@ def addPodcast(url):
         print ("Couldn't parse. (%s)" % url)
     with DB() as dbHandler:
         dbHandler.sql(
-            "INSERT INTO casts (title, url, last_updated, status) VALUES (?,?,?,?)",
-            (cast.feed.title, url, now()[1], STATUS_UPDATE_CAST)
+            "INSERT INTO casts (title, url, last_updated, status, short_name) VALUES (?,?,?,?,?)",
+            (cast.feed.title, url, now()[1], STATUS_UPDATE_CAST, short_name)
         )
         feedId = dbHandler.getLastId()
     cast = Cast(feedId)
@@ -756,7 +760,6 @@ def getNewPosts():
             lastCast = line[2]
         print "[%06d]'%s'\n(%s)" % (line[4], makePrintable(line[0]), makePrintable(line[1]))
 
-
 def updateAll():
     """update all podcasts with the status_flag
     set to STATUS_UPDATE_CAST
@@ -788,7 +791,7 @@ def print_results_to_screen():
             for postTitle in update_result[index]['posts']:
                 print "\t%s"%postTitle
             print "-----------------------------------------\n"
-    
+
 
 #------------------------------------------- -------------------------------------------------------------
 #------------------------------------------- Helper Functions --------------------------------------------
@@ -824,17 +827,8 @@ def main(args):
     parser.add_argument('-r', '--remove', action="store", dest="rm_cast_id", help='Remove podcast with this id from database')
     parser.add_argument('-c', '--allcasts', action="store_const", const="ALLCASTS", dest="allcasts", help='List all podcast subscriptions.')
     parser.add_argument('-g', '--getshow', action="store", dest="getshowID", help='Download show with this ID.')
+    parser.add_argument('-sn', '--shortname', action="store", dest="short_name", help='set this as the directory-name')
 
-
-    # parser.add_argument('-un', '--unsubscribe', action="store", dest="unsub_url", help='Unsubscribe from the following Podcast feed')
-    # parser.add_argument('-ma', '--mail-add', action="store", dest="mail_address_add", help='Add a mail address to mail subscription updates to')
-    # parser.add_argument('-md', '--mail-delete', action="store", dest="mail_address_delete", help='Delete a mail address')
-
-    # parser.add_argument('-ml', '--mail-list', action="store_const", const="MAIL", dest="list_mail", help='Lists all current mail addresses')
-
-    # parser.add_argument('-io', '--import', action="store", dest="opml_import", help='Import subscriptions from OPML file')
-    # parser.add_argument('-eo', '--export', action="store_const", const="OPML_EXPORT", dest="opml_export", help='Export subscriptions to OPML file')
-    
     arguments = parser.parse_args(args)
     
     if arguments.update_casts:
@@ -849,7 +843,11 @@ def main(args):
         else:
             "Cast with this id or name not found."
     elif arguments.feed_url:
-        addPodcast(arguments.feed_url)
+        if arguments.short_name == None:
+            short_name = 'no_name'
+        else:
+            short_name = arguments.short_name
+        addPodcast(arguments.feed_url, short_name)
     elif arguments.list_cast_id:
         cast = getCast(arguments.list_cast_id)
         if cast:
@@ -864,8 +862,17 @@ def main(args):
         print arguments.getshowID
         post = Cast().getPost(int(arguments.getshowID))
         post.download()
-        
+
+def save_shortName(id, short_name):
+    with DB() as dbHandler:
+        dbHandler.sql("UPDATE casts SET short_title=? WHERE id=?", (short_name, id))
 
 
 if __name__ == '__main__':
     main(sys.argv[1:])
+    # casts = get_active_podcasts()
+    # for cast in casts:
+    #     print (makePrintable(cast[1]))
+    #     shortname = raw_input('Short_name:')
+    #     id = cast[0]
+    #     save_shortName(id, shortname)
