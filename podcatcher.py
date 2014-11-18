@@ -207,13 +207,13 @@ class Post(object):
         """
         self.has_audio = True
         self.feedId, self.id, self.title, self.subtitle, self.author, self.published, self.media_link, self.hash, self.status = row
-        self.feedId = int(self.feedId)
+        # self.feedId = int(self.feedId)
         self.daysOld = self._getDaysSincePublished()
 
     def download(self):
         """download media to hard drive
         """
-        print "Cast-Id: %d" %self.feedId
+        print "Cast-Id: %s" %self.feedId
         cast = Cast(self.feedId)
         print "Directoryname: %s" % cast.short_title
         dirname = cast.short_title
@@ -906,5 +906,5 @@ def save_shortName(id, short_title):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1:]k)
+    main(sys.argv[1:])
     # create_all_dirs()
