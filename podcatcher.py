@@ -818,6 +818,17 @@ def print_results_to_screen():
                 print "\t%s"%postTitle
             print "-----------------------------------------\n"
 
+def create_all_dirs():
+    """Create all directories according to the short_title of the Cast
+    """
+    with DB() as dbHandler:
+        results = dbHandler.sql(
+            "SELECT short_title FROM casts WHERE status=?",
+            (STATUS_UPDATE_CAST,)
+        )
+    for result in results:
+        if result[0] not in os.listdir(MEDIA_PATH):
+            os.mkdir(os.path.join(MEDIA_PATH, result[0]))
 
 #------------------------------------------- -------------------------------------------------------------
 #------------------------------------------- Helper Functions --------------------------------------------
@@ -895,4 +906,5 @@ def save_shortName(id, short_title):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    main(sys.argv[1:]k)
+    # create_all_dirs()
