@@ -206,17 +206,28 @@ class Post(object):
         """get data from database-row
         """
         self.has_audio = True
-        self.id, self.title, self.subtitle, self.author, self.published, self.media_link, self.hash, self.status = row
+        self.feedId, self.id, self.title, self.subtitle, self.author, self.published, self.media_link, self.hash, self.status = row
+        self.feedId = int(self.feedId)
         self.daysOld = self._getDaysSincePublished()
 
     def download(self):
         """download media to hard drive
         """
+        print "Cast-Id: %d" %self.feedId
+        cast = Cast(self.feedId)
+        print "Directoryname: %s" % cast.short_title
+        dirname = cast.short_title
         filename = os.path.basename(self.media_link)
         filename = filename.split('?')[0]
-        if not filename in os.listdir(MEDIA_PATH):
+
+        targetPath = os.path.join(MEDIA_PATH, dirname)
+
+        if dirname not in os.listdir(MEDIA_PATH):
+            os.mkdir(targetPath)
+
+        if not filename in os.listdir(targetPath):
             data = downloadAudio(self.media_link)
-            path = os.path.join(MEDIA_PATH,filename)
+            path = os.path.join(targetPath,filename)
             with open (path,"wb") as fh:
                 fh.write(data)
             self._tagFile(path)
@@ -423,6 +434,7 @@ class Cast(object):
         self.allPosts = {}
         if self.feedId != None:
             self.title = self._getTitle()
+            self.short_title = self._get_short_title()
             self._getAllPosts()
 
     def getLatestPost(self):
@@ -448,7 +460,7 @@ class Cast(object):
 
     def getPost(self, post_id):
         with DB() as dbHandler:
-            result = dbHandler.sql("SELECT id, title, subtitle, author, published, media_link, hash, status FROM shows WHERE id=?",(post_id,))
+            result = dbHandler.sql("SELECT feed_id, id, title, subtitle, author, published, media_link, hash, status FROM shows WHERE id=?",(post_id,))
         post = Post(self.feedId)
         post.fromDbRow(result[0])
         return post
@@ -471,7 +483,8 @@ class Cast(object):
             if limit == 1:
                 post = postList[0]
                 return post
-            return postList
+            else:
+                return postList
         else:
             print "No new posts."
             return None
@@ -586,6 +599,19 @@ class Cast(object):
             return makePrintable(title[0][0])
         else:
             raise IndexError("Feed-id does not exist.")
+    
+    def _get_short_title(self):
+        """read short_title from database
+        """
+        with DB() as dbHandler:
+            title = dbHandler.sql(
+                "SELECT short_title FROM casts WHERE id=?",
+                (self.feedId,)
+            )
+        if title:
+            return title[0][0]
+        else:
+            raise IndexError("Feed-id does not exist.")      
 
 #------------------------------------------- -------------------------------------------------------------
 #-------------------------------------------------- functions --------------------------------------------
