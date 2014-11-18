@@ -615,7 +615,7 @@ def now(daysInThePast=0):
     nowString = now.strftime("%Y-%m-%d %H:%M:%S")
     return (now,nowString)
 
-def addPodcast(url, shortname):
+def addPodcast(url, short_title):
     """add a new feed-url to database
     """
     try:
@@ -624,8 +624,8 @@ def addPodcast(url, shortname):
         print ("Couldn't parse. (%s)" % url)
     with DB() as dbHandler:
         dbHandler.sql(
-            "INSERT INTO casts (title, url, last_updated, status, short_name) VALUES (?,?,?,?,?)",
-            (cast.feed.title, url, now()[1], STATUS_UPDATE_CAST, short_name)
+            "INSERT INTO casts (title, url, last_updated, status, short_title) VALUES (?,?,?,?,?)",
+            (cast.feed.title, url, now()[1], STATUS_UPDATE_CAST, short_title)
         )
         feedId = dbHandler.getLastId()
     cast = Cast(feedId)
@@ -827,7 +827,7 @@ def main(args):
     parser.add_argument('-r', '--remove', action="store", dest="rm_cast_id", help='Remove podcast with this id from database')
     parser.add_argument('-c', '--allcasts', action="store_const", const="ALLCASTS", dest="allcasts", help='List all podcast subscriptions.')
     parser.add_argument('-g', '--getshow', action="store", dest="getshowID", help='Download show with this ID.')
-    parser.add_argument('-sn', '--shortname', action="store", dest="short_name", help='set this as the directory-name')
+    parser.add_argument('-sn', '--shortname', action="store", dest="short_title", help='set this as the directory-name')
 
     arguments = parser.parse_args(args)
     
@@ -843,11 +843,11 @@ def main(args):
         else:
             "Cast with this id or name not found."
     elif arguments.feed_url:
-        if arguments.short_name == None:
-            short_name = 'no_name'
+        if arguments.short_title == None:
+            short_title = 'no_name'
         else:
-            short_name = arguments.short_name
-        addPodcast(arguments.feed_url, short_name)
+            short_title = arguments.short_title
+        addPodcast(arguments.feed_url, short_title)
     elif arguments.list_cast_id:
         cast = getCast(arguments.list_cast_id)
         if cast:
@@ -863,16 +863,10 @@ def main(args):
         post = Cast().getPost(int(arguments.getshowID))
         post.download()
 
-def save_shortName(id, short_name):
+def save_shortName(id, short_title):
     with DB() as dbHandler:
-        dbHandler.sql("UPDATE casts SET short_title=? WHERE id=?", (short_name, id))
+        dbHandler.sql("UPDATE casts SET short_title=? WHERE id=?", (short_title, id))
 
 
 if __name__ == '__main__':
     main(sys.argv[1:])
-    # casts = get_active_podcasts()
-    # for cast in casts:
-    #     print (makePrintable(cast[1]))
-    #     shortname = raw_input('Short_name:')
-    #     id = cast[0]
-    #     save_shortName(id, shortname)
