@@ -1,4 +1,6 @@
+#!/usr/bin/env python
 # -*- coding: UTF-8 -*-
+
 """
 podcatcher.py is a simple commandline tool to manage podcast feeds
 
@@ -214,6 +216,7 @@ class Post(object):
         """download media to hard drive
         """
         print "Cast-Id: %s" %self.feedId
+        print "Show-Title: %s" %self.title
         cast = Cast(self.feedId)
         print "Directoryname: %s" % cast.short_title
         dirname = cast.short_title
@@ -239,6 +242,7 @@ class Post(object):
         """use mutagen to set (ID-3)-Tags inside audio file
         PODCAST_STATUS = new
         useful for foobar2000's dynamic-playlist function
+        FIXME: this sucks! Make it better!
         """
         try:
             audio = ID3(path)
@@ -254,36 +258,45 @@ class Post(object):
                     except:
                         print "Couldn't tag audio-file."
                     else: #mutagen_file
+                        print 'Tagging: FILE passed'
+                        print 'adding tags...'
                         try:
                             audio.add_tags()
                         except:
-                            pass
+                            print 'failed.'
                         try:
+                            print 'setting title...'
                             audio["title"] = os.path.basename(path)
                         except:
                             print "Couldn't tag audio-file."
                         else:
+                            print 'setting podcast_status...'
                             try:
                                 audio['podcast_status'] = 'new'
                                 audio.save()
                             except:
                                 print "Couldn't tag audio-file."
                 else: #MP3
+                    print 'Tagging MP3 passed'
+                    print 'now trying to add title...'
                     try:
                         audio.add_tags()
                         audio['title'] = os.path.basename(path)
                     except mutagen.id3.error:
                         print "Couldn't tag audio-file."
                     else:
+                        print 'Tagging: saving and recalling...'
                         audio.save()
                         #now it should be taggable by ID3-class
                         self._tagFile(path)
                         #TODO: Test if recursion could crash 13.06.2014
-                        #not yet crashed 10.08.2014
+                        #not yet crashed 19.11.2014
             else:#MP4
+                print 'Tagging: MP4 passed'
                 audio['----:com.apple.iTunes:PODCAST_STATUS'] = "new"
                 audio.save()
         else:#ID3
+            print 'Tagging: ID3 passed'
             audio.add(TXXX(encoding=3,desc="PODCAST_STATUS",text="new"))
             audio.save()
             
@@ -471,7 +484,7 @@ class Cast(object):
         post = Post(self.feedId)
         with DB() as dbHandler:
             result = dbHandler.sql(
-                "SELECT id, title, subtitle, author, published, media_link, hash, status FROM shows WHERE feed_id=? AND status<>? AND status <>? ORDER BY published DESC LIMIT ?",
+                "SELECT feed_id, id, title, subtitle, author, published, media_link, hash, status FROM shows WHERE feed_id=? AND status<>? AND status <>? ORDER BY published DESC LIMIT ?",
                 (self.feedId, STATUS_DOWNLOADED_POST, STATUS_NO_AUDIO_POST, limit)
             )
         if result:
@@ -625,6 +638,7 @@ def makePrintable(unprintable):
         #known characters are therefor selecting the x in the two-item-list
         #unkown characters select the '{?}'
         #finally everything is joined together
+        #an example of bad, cause unreadable code! :]
         [['{?}',x][re.match(u"[\[\]\w -.:@~/äöüÄÖÜß]",x)!=None] for x in unprintable ]
     )
 
