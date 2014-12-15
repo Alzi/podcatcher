@@ -215,8 +215,8 @@ class Post(object):
     def download(self):
         """download media to hard drive
         """
-        print "Cast-Id: %s" %self.feedId
-        print "Show-Title: %s" %self.title
+        print "Cast-Id: %s" % self.feedId
+        print "Show-Title: %s" % (makePrintable(self.title))
         cast = Cast(self.feedId)
         print "Directoryname: %s" % cast.short_title
         dirname = cast.short_title
@@ -233,12 +233,12 @@ class Post(object):
             path = os.path.join(targetPath,filename)
             with open (path,"wb") as fh:
                 fh.write(data)
-            self._tagFile(path)
+            self._tagFile(path, makePrintable(self.title))
         else:
             print "File allready downloaded!"
         self._setStatusDownloaded()
 
-    def _tagFile(self, path):
+    def _tagFile(self, path, title):
         """use mutagen to set (ID-3)-Tags inside audio file
         PODCAST_STATUS = new
         useful for foobar2000's dynamic-playlist function
@@ -281,14 +281,15 @@ class Post(object):
                     print 'now trying to add title...'
                     try:
                         audio.add_tags()
-                        audio['title'] = os.path.basename(path)
+                        audio['title'] = title
+                        print "Title added (%s)" % title
                     except mutagen.id3.error:
                         print "Couldn't tag audio-file."
                     else:
                         print 'Tagging: saving and recalling...'
                         audio.save()
                         #now it should be taggable by ID3-class
-                        self._tagFile(path)
+                        self._tagFile(path, title)
                         #TODO: Test if recursion could crash 13.06.2014
                         #not yet crashed 19.11.2014
             else:#MP4
