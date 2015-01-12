@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from hashlib import sha256
 from thread import start_new_thread, allocate_lock
 import urllib2
+import socket
 import sys
 import os
 import re
@@ -543,7 +544,8 @@ class Cast(object):
         self._updated()
         lock.acquire()
         num_of_threads -= 1
-        sys.stdout.write(".")
+        print ("(%s) updated." % self.title)
+        # sys.stdout.write(".")
         lock.release()
         
     def _markOlderPosts(self):
@@ -807,7 +809,7 @@ def updateAll():
     """
     global update_result, thread_started, num_of_threads
     os.system('cls')
-    sys.stdout.write("updating podcasts")
+    print("updating podcasts...")
     castsToUpdate = get_active_podcasts()
     allThreads = []
     for data in castsToUpdate:
@@ -821,7 +823,7 @@ def updateAll():
     while num_of_threads > 0:
         pass
 
-    sys.stdout.write("ready.\n")
+    print("ready.")
     print_results_to_screen()
 
 def print_results_to_screen():
@@ -870,6 +872,8 @@ def createTableShows():
         )
 
 def main(args):
+    socket.setdefaulttimeout(5)
+
     parser = argparse.ArgumentParser(description='A command line Podcast downloader for RSS XML feeds')
     parser.add_argument('-u', '--update', action="store_const", const="UPDATE", dest="update_casts", help='Update all current podcast subscriptions')
     parser.add_argument('-d', '--download', action="store", dest="dl_cast_id", help='Download the latest show on this cast-id.')
