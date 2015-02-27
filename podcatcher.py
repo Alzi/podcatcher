@@ -23,7 +23,7 @@ from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4
 from mutagen import File as mutagen_File
 
-from Lib import feedparser
+import feedparser
 
 __author__ = "Marc Wesemeier, Wackernheim, Germany"
 __date__ = "2014-04-17"
@@ -926,4 +926,4 @@ def save_shortName(id, short_title):
 
 if __name__ == '__main__':
     main(sys.argv[1:])
-    # create_all_dirs()
+    # save_shortName(57, 'physikalische_soiree')

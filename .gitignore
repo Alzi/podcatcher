@@ -2,3 +2,4 @@ html/*
 logs/*
 *.pyc
 Lib/*
+*.db
