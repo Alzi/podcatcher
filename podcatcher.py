@@ -113,15 +113,11 @@ STATUS_NEW_POST = 1
 STATUS_OLDER_POST = 2
 STATUS_NO_AUDIO_POST = 3
 
-#------------------------------------------- global variables --------------------------------------------
-
 lock = allocate_lock()
 update_result = {}
 thread_started = False
 num_of_threads = 0
-#------------------------------------------- -------------------------------------------------------------
-#------------------------------------------- class DB ----------------------------------------------------
-#------------------------------------------- -------------------------------------------------------------
+
 
 class DB(object):
     """simple handler of sqlite3 queries.
@@ -136,7 +132,7 @@ class DB(object):
         return self
 
     def __exit__(self, type, value, traceback):
-        """called after pythons with-stamement.
+        """called after with-stamement block.
         """
         self.conn.close()
 
@@ -153,11 +149,8 @@ class DB(object):
 class Logger(object):
     """Simple notes- and errors-logger
     """
-    def __init__(self, logType="Note"):
-        if logType == "Note":
-            logpath = os.path.join(LOG_PATH, "notes.txt")
-        elif logType == "Error":
-            logpath = os.path.join(LOG_PATH, "errors.txt")
+    def __init__(self):
+        logpath = os.path.join(LOG_PATH, "logs.txt")
         self.fileHandler = open(logpath,"a")
     
     def __enter__(self):
@@ -168,11 +161,8 @@ class Logger(object):
 
     def write(self, data):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.fileHandler.write("%s:\t%s\n%s\n" % (now,data,60*'-'))
+        self.fileHandler.write("%s:\t%s\n" % (now,data))
 
-#------------------------------------------- -------------------------------------------------------------
-#------------------------------------------- class Post --------------------------------------------------
-#------------------------------------------- -------------------------------------------------------------
 
 class Post(object):
     """Handle data corresponding to one certain show
@@ -200,7 +190,8 @@ class Post(object):
         self.subtitle = self._getSubtitle()
         self.author = self._getAuthor()
         self.published = self._getPublished()
-        self.media_link = self._extractMediaLinks() #TODO: multiple Media-Links aren't handled
+        self.media_link = self._extractMediaLinks() 
+        #TODO: multiple Media-Links aren't handled
         self.hash = self._getHash()
         self.status = STATUS_NEW_POST
         self.daysOld = self._getDaysSincePublished()
@@ -209,18 +200,21 @@ class Post(object):
         """get data from database-row
         """
         self.has_audio = True
-        self.feedId, self.id, self.title, self.subtitle, self.author, self.published, self.media_link, self.hash, self.status = row
+        self.feedId, self.id, self.title, self.subtitle,\
+            self.author, self.published, self.media_link,\
+            self.hash, self.status = row
         # self.feedId = int(self.feedId)
         self.daysOld = self._getDaysSincePublished()
 
     def download(self):
         """download media to hard drive
         """
-        print "Cast-Id: %s" % self.feedId
-        print "Show-Title: %s" % (makePrintable(self.title))
         cast = Cast(self.feedId)
-        print "Directoryname: %s" % cast.short_title
         dirname = cast.short_title
+        print('Downloading: %s[%s] "%s"' % (
+            makePrintable(self.title), self.feedId, 
+            makePrintable(dirname))
+        )
         filename = os.path.basename(self.media_link)
         filename = filename.split('?')[0]
 
@@ -386,16 +380,21 @@ class Post(object):
         self.mediaLinks = []
         newTypes = set()
         for link in self.entry.links:
-            if link.type in AUDIO_MIME_TYPES:
-                self.mediaLinks.append((link.href,link.type))
+            linktype = ''
+            try:
+                linktype = link.type
+            except:
+                pass
+            # print linktype
+            if linktype in AUDIO_MIME_TYPES:
+                self.mediaLinks.append((link.href,linktype))
                 self.has_audio = True
-            elif link.type in KNOWN_MIME_TYPES:
+            elif linktype in KNOWN_MIME_TYPES:
                 pass
             else:
-                newTypes.add(link.type)
+                newTypes.add(linktype)
         if newTypes:
-            with Logger() as log:
-                log.write("New MimeType(s) found:\n%s" % newTypes)
+            log("New MimeType(s) found:\n%s" % newTypes)
         if not self.mediaLinks:
             self.has_audio = False
             return "no audio"
@@ -411,7 +410,10 @@ class Post(object):
             published = u'no date'
         else:
             published = published.split()
-            oldString = "%s %s %s %s %s" % (published[0],published[1],published[2][:3],published[3],published[4])
+            oldString = "%s %s %s %s %s" % (
+                published[0], published[1], published[2][:3],
+                published[3],published[4]
+            )
             date = datetime.strptime( oldString, "%a, %d %b %Y %H:%M:%S" )
             newString = date.strftime("%Y-%m-%d %H:%M:%S")
             published = unicode(newString)
@@ -436,9 +438,6 @@ class Post(object):
         m.update(unicode.encode(self.published,'utf-8'))
         return m.hexdigest()
 
-#------------------------------------------- -------------------------------------------------------------
-#------------------------------------------- class Cast -------------------------------------------------
-#------------------------------------------- -------------------------------------------------------------
 
 class Cast(object):
     """Handle all data corresponding to a cast
@@ -458,9 +457,14 @@ class Cast(object):
         return self.getLatestPosts()
 
     def listAll(self):
-        print "------------ %s(%s) ------------\n" % (makePrintable(self.title), self.feedId)
+        print "------------ %s(%s) ------------\n" % (
+            makePrintable(self.title), self.feedId
+        )
         with DB() as dbHandler:
-            result = dbHandler.sql("SELECT id, title, published, status FROM shows WHERE feed_id=? ORDER BY published DESC",(self.feedId,))
+            result = dbHandler.sql("SELECT id, title, published, status \
+                FROM shows WHERE feed_id=? ORDER BY published DESC",
+                (self.feedId,)
+            )
         for row in result:
             status = row[3]
             if status == STATUS_DOWNLOADED_POST:
@@ -471,11 +475,16 @@ class Cast(object):
                 status = "no audio"
             else:
                 status = "older"
-            print "(%05d) [%s] %s /'%s'" % (row[0], row[2], makePrintable(row[1]), status)
+            print "(%05d) [%s] %s /'%s'" % (
+                row[0], row[2], makePrintable(row[1]), status
+            )
 
     def getPost(self, post_id):
         with DB() as dbHandler:
-            result = dbHandler.sql("SELECT feed_id, id, title, subtitle, author, published, media_link, hash, status FROM shows WHERE id=?",(post_id,))
+            result = dbHandler.sql("SELECT feed_id, id, title, subtitle,\
+                author, published, media_link, hash, status\
+                FROM shows WHERE id=?",(post_id,)
+            )
         post = Post(self.feedId)
         post.fromDbRow(result[0])
         return post
@@ -485,9 +494,13 @@ class Cast(object):
         """
         post = Post(self.feedId)
         with DB() as dbHandler:
-            result = dbHandler.sql(
-                "SELECT feed_id, id, title, subtitle, author, published, media_link, hash, status FROM shows WHERE feed_id=? AND status<>? AND status <>? ORDER BY published DESC LIMIT ?",
-                (self.feedId, STATUS_DOWNLOADED_POST, STATUS_NO_AUDIO_POST, limit)
+            result = dbHandler.sql("SELECT feed_id, id, title, subtitle, \
+                author, published, media_link, hash, status \
+                FROM shows WHERE feed_id=? AND status<>? AND status <>? \
+                ORDER BY published DESC LIMIT ?",
+                (self.feedId, STATUS_DOWNLOADED_POST, 
+                    STATUS_NO_AUDIO_POST, limit
+                )
             )
         if result:
             postList = []
@@ -554,7 +567,9 @@ class Cast(object):
             dbHandler.sql(
                 "UPDATE shows set status=? WHERE published <? \
                 AND feed_id=? AND status<>? AND status <>?",
-                (STATUS_OLDER_POST, then, self.feedId, STATUS_DOWNLOADED_POST, STATUS_NO_AUDIO_POST)
+                (STATUS_OLDER_POST, then, self.feedId, 
+                 STATUS_DOWNLOADED_POST, STATUS_NO_AUDIO_POST
+                )
             )
 
     def _updated(self):
@@ -633,6 +648,10 @@ class Cast(object):
 #-------------------------------------------------- functions --------------------------------------------
 #------------------------------------------- -------------------------------------------------------------
 
+def log(message):
+    with Logger() as l:
+        l.write(message)
+
 def makePrintable(unprintable):
     """change unprintable characters into '-'
     """
@@ -664,10 +683,11 @@ def addPodcast(url, short_title):
     try:
         cast = feedparser.parse(url)
     except:
-        print ("Couldn't parse. (%s)" % url)
+        log("Couldn't parse. (%s)" % url)
     with DB() as dbHandler:
         dbHandler.sql(
-            "INSERT INTO casts (title, url, last_updated, status, short_title) VALUES (?,?,?,?,?)",
+            "INSERT INTO casts (title, url, last_updated, status, short_title) \
+            VALUES (?,?,?,?,?)",
             (cast.feed.title, url, now()[1], STATUS_UPDATE_CAST, short_title)
         )
         feedId = dbHandler.getLastId()
@@ -678,7 +698,9 @@ def removeCast(feedId):
     """remove cast and it's posts from database
     """
     cast = Cast(feedId);
-    print "This will remove '%s' and %d posts from database." % (makePrintable(cast.title), len(cast.allPosts))
+    print "This will remove '%s' and %d posts from database." % (
+        makePrintable(cast.title), len(cast.allPosts)
+    )
     answer = raw_input("Continue? (y/n)")
     if answer == 'y':
         with DB() as dbHandler:
@@ -793,15 +815,21 @@ def getNewPosts():
     os.system('cls')
     with DB() as dbHandler:
         result = dbHandler.sql(
-            "SELECT P.title, P.published, F.title, F.id, P.id FROM shows AS P JOIN casts AS F ON F.id=P.feed_id WHERE P.status=? ORDER BY F.id, P.published",
+            "SELECT P.title, P.published, F.title, F.id, P.id \
+            FROM shows AS P JOIN casts AS F ON F.id=P.feed_id \
+            WHERE P.status=? ORDER BY F.id, P.published",
             (STATUS_NEW_POST,)
         )
     lastCast = ""
     for line in result:
         if lastCast != line[2]:
-            print "---------------------------------------\n%s(%s):" % (makePrintable(line[2]), line[3])
+            print "---------------------------------------\n%s(%s):" % (
+                makePrintable(line[2]), line[3]
+            )
             lastCast = line[2]
-        print "[%06d]'%s'\n(%s)" % (line[4], makePrintable(line[0]), makePrintable(line[1]))
+        print "[%06d]'%s'\n(%s)" % (line[4], makePrintable(line[0]), 
+            makePrintable(line[1])
+        )
 
 def updateAll():
     """update all podcasts with the status_flag
@@ -830,7 +858,9 @@ def print_results_to_screen():
     global update_result
     for index in sorted(update_result):
         if update_result[index]['posts']:
-            print "-----------------------------------------\n(%d)%s" % (index, update_result[index]['title'])
+            print "-----------------------------------------\n(%d)%s" % (
+                index, update_result[index]['title']
+            )
             for postTitle in update_result[index]['posts']:
                 print "\t%s"%postTitle
             print "-----------------------------------------\n"
@@ -847,9 +877,6 @@ def create_all_dirs():
         if result[0] not in os.listdir(MEDIA_PATH):
             os.mkdir(os.path.join(MEDIA_PATH, result[0]))
 
-#------------------------------------------- -------------------------------------------------------------
-#------------------------------------------- Helper Functions --------------------------------------------
-#------------------------------------------- -------------------------------------------------------------
 
 def createTableCasts():
     """database-init: table casts
@@ -875,15 +902,32 @@ def main(args):
     socket.setdefaulttimeout(5)
 
     parser = argparse.ArgumentParser(description='A command line Podcast downloader for RSS XML feeds')
-    parser.add_argument('-u', '--update', action="store_const", const="UPDATE", dest="update_casts", help='Update all current podcast subscriptions')
-    parser.add_argument('-d', '--download', action="store", dest="dl_cast_id", help='Download the latest show on this cast-id.')
-    parser.add_argument('-n', '--new', action="store_const", const="NEW", dest="new_posts", help='Lists new shows')
-    parser.add_argument('-l', '--list', action="store", dest="list_cast_id", help='List all posts of this cast-id or cast-name')
-    parser.add_argument('-s', '--subscribe', action="store", dest="feed_url", help='Subscribe to the following XML feed.')
-    parser.add_argument('-r', '--remove', action="store", dest="rm_cast_id", help='Remove podcast with this id from database')
-    parser.add_argument('-c', '--allcasts', action="store_const", const="ALLCASTS", dest="allcasts", help='List all podcast subscriptions.')
-    parser.add_argument('-g', '--getshow', action="store", dest="getshowID", help='Download show with this ID.')
-    parser.add_argument('-sn', '--shortname', action="store", dest="short_title", help='set this as the directory-name')
+    parser.add_argument('-u', '--update',    action="store_const", 
+        const="UPDATE", dest="update_casts", help='Update all current podcast subscriptions')
+
+    parser.add_argument('-d', '--download',  action="store", 
+        dest="dl_cast_id", help='Download the latest show on this cast-id.')
+
+    parser.add_argument('-n', '--new',       action="store_const", 
+        const="NEW", dest="new_posts", help='Lists new shows')
+
+    parser.add_argument('-l', '--list',      action="store", 
+        dest="list_cast_id", help='List all posts of this cast-id or cast-name')
+
+    parser.add_argument('-s', '--subscribe', action="store", 
+        dest="feed_url", help='Subscribe to the following XML feed.')
+
+    parser.add_argument('-r', '--remove',    action="store", 
+        dest="rm_cast_id", help='Remove podcast with this id from database')
+
+    parser.add_argument('-c', '--allcasts',  action="store_const", 
+        const="ALLCASTS", dest="allcasts", help='List all podcast subscriptions.')
+
+    parser.add_argument('-g', '--getshow',   action="store", 
+        dest="getshowID", help='Download show with this ID.')
+
+    parser.add_argument('-sn', '--shortname',action="store", 
+        dest="short_title", help='set this as the directory-name')
 
     arguments = parser.parse_args(args)
     
@@ -915,14 +959,15 @@ def main(args):
     elif arguments.allcasts:
         list_podcasts()
     elif arguments.getshowID:
-        print arguments.getshowID
+        # print arguments.getshowID
         post = Cast().getPost(int(arguments.getshowID))
         post.download()
 
 def save_shortName(id, short_title):
     with DB() as dbHandler:
-        dbHandler.sql("UPDATE casts SET short_title=? WHERE id=?", (short_title, id))
-
+        dbHandler.sql("UPDATE casts SET short_title=? WHERE id=?", (
+            short_title, id)
+        )
 
 if __name__ == '__main__':
     main(sys.argv[1:])
