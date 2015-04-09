@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # -*- coding: UTF-8 -*-
 
 """
@@ -677,22 +677,7 @@ def now(daysInThePast=0):
     nowString = now.strftime("%Y-%m-%d %H:%M:%S")
     return (now,nowString)
 
-def addPodcast(url, short_title):
-    """add a new feed-url to database
-    """
-    try:
-        cast = feedparser.parse(url)
-    except:
-        log("Couldn't parse. (%s)" % url)
-    with DB() as dbHandler:
-        dbHandler.sql(
-            "INSERT INTO casts (title, url, last_updated, status, short_title) \
-            VALUES (?,?,?,?,?)",
-            (cast.feed.title, url, now()[1], STATUS_UPDATE_CAST, short_title)
-        )
-        feedId = dbHandler.getLastId()
-    cast = Cast(feedId)
-    cast.update()
+
 
 def removeCast(feedId):
     """remove cast and it's posts from database
@@ -737,7 +722,6 @@ def list_podcasts():
 def progressReport(bytesSoFar, chunkSize, totalSize):
     """Write download-progress to stdout.
     """
-
     percent = float(bytesSoFar) / totalSize
     percent = round(percent*100, 2)
     sys.stdout.write(
@@ -831,29 +815,6 @@ def getNewPosts():
             makePrintable(line[1])
         )
 
-def updateAll():
-    """update all podcasts with the status_flag
-    set to STATUS_UPDATE_CAST
-    """
-    global update_result, thread_started, num_of_threads
-    os.system('cls')
-    print("updating podcasts...")
-    castsToUpdate = get_active_podcasts()
-    allThreads = []
-    for data in castsToUpdate:
-        feedId = data[0]
-        cast = Cast(feedId)
-        start_new_thread(cast.update,())
-
-    while not thread_started:
-        pass
-
-    while num_of_threads > 0:
-        pass
-
-    print("ready.")
-    print_results_to_screen()
-
 def print_results_to_screen():
     global update_result
     for index in sorted(update_result):
@@ -877,6 +838,7 @@ def create_all_dirs():
         if result[0] not in os.listdir(MEDIA_PATH):
             os.mkdir(os.path.join(MEDIA_PATH, result[0]))
 
+#---------------------------  database helper ----------------------            
 
 def createTableCasts():
     """database-init: table casts
@@ -898,70 +860,176 @@ def createTableShows():
                 media_link TEXT, published TEXT, status INT, hash TEXT)"
         )
 
-def main(args):
-    socket.setdefaulttimeout(5)
+#---------------------------  command-line funcs -------------------
 
-    parser = argparse.ArgumentParser(description='A command line Podcast downloader for RSS XML feeds')
-    parser.add_argument('-u', '--update',    action="store_const", 
-        const="UPDATE", dest="update_casts", help='Update all current podcast subscriptions')
+def commandUpdateAll(args):
+    """update all podcasts with the status_flag set to STATUS_UPDATE_CAST
+    """
+    global update_result, thread_started, num_of_threads
+    # os.system('cls')
+    print("updating podcasts...")
+    castsToUpdate = get_active_podcasts()
+    allThreads = []
+    for data in castsToUpdate:
+        feedId = data[0]
+        cast = Cast(feedId)
+        start_new_thread(cast.update,())
 
-    parser.add_argument('-d', '--download',  action="store", 
-        dest="dl_cast_id", help='Download the latest show on this cast-id.')
+    while not thread_started:
+        pass
 
-    parser.add_argument('-n', '--new',       action="store_const", 
-        const="NEW", dest="new_posts", help='Lists new shows')
+    while num_of_threads > 0:
+        pass
 
-    parser.add_argument('-l', '--list',      action="store", 
-        dest="list_cast_id", help='List all posts of this cast-id or cast-name')
+    print("ready.")
+    print_results_to_screen()
 
-    parser.add_argument('-s', '--subscribe', action="store", 
-        dest="feed_url", help='Subscribe to the following XML feed.')
+def commandAddPodcast(args):
+    """add a new feed-url to database
+    """
+    try:
+        cast = feedparser.parse(args.url)
+    except:
+        log("Couldn't parse. (%s)" % args.url)
+    else:
+        with DB() as dbHandler:
+            dbHandler.sql(
+                "INSERT INTO casts (\
+                    title, url, last_updated, status, short_title\
+                    ) VALUES (?,?,?,?,?)", (
+                        cast.feed.title, 
+                        args.url, 
+                        now()[1], 
+                        STATUS_UPDATE_CAST, 
+                        args.short_title
+                    )
+            )
+            feedId = dbHandler.getLastId()
+        cast = Cast(feedId)
+        cast.update()
 
-    parser.add_argument('-r', '--remove',    action="store", 
-        dest="rm_cast_id", help='Remove podcast with this id from database')
-
-    parser.add_argument('-c', '--allcasts',  action="store_const", 
-        const="ALLCASTS", dest="allcasts", help='List all podcast subscriptions.')
-
-    parser.add_argument('-g', '--getshow',   action="store", 
-        dest="getshowID", help='Download show with this ID.')
-
-    parser.add_argument('-sn', '--shortname',action="store", 
-        dest="short_title", help='set this as the directory-name')
-
-    arguments = parser.parse_args(args)
-    
-    if arguments.update_casts:
-        updateAll()
-    elif arguments.new_posts:
+def commandStatus(args):
+    # print args
+    if args.new:
         getNewPosts()
-    elif arguments.dl_cast_id:
-        cast = getCast(arguments.dl_cast_id)
-        if cast:
-            post = cast.getLatestPosts(1)
-            post.download()
-        else:
-            "Cast with this id or name not found."
-    elif arguments.feed_url:
-        if arguments.short_title == None:
-            short_title = 'no_name'
-        else:
-            short_title = arguments.short_title
-        addPodcast(arguments.feed_url, short_title)
-    elif arguments.list_cast_id:
-        cast = getCast(arguments.list_cast_id)
+    elif args.cast_id:
+        cast = getCast(args.cast_id)
         if cast:
             cast.listAll()
         else:
             "Cast with this id or name not found."
-    elif arguments.rm_cast_id:
-        removeCast(arguments.rm_cast_id)
-    elif arguments.allcasts:
+    elif args.casts:
         list_podcasts()
-    elif arguments.getshowID:
-        # print arguments.getshowID
-        post = Cast().getPost(int(arguments.getshowID))
-        post.download()
+
+def commandGet(args):
+    print args
+    if args.casts:
+        for cast_id in args.casts:
+            cast = getCast(cast_id)
+            if cast:
+                post = cast.getLatestPosts(1)
+                post.download()
+            else:
+                "Cast with this id or name not found."
+    
+    elif args.all:
+        print 'I should download all new casts,'
+        print 'but I need some implementation. :('
+
+    elif args.shows:
+        for show_id in args.shows:
+            post = Cast().getPost(show_id)
+            post.download()
+
+def main(args):
+    socket.setdefaulttimeout(5)
+
+    parser = argparse.ArgumentParser(
+        description='A command line Podcast downloader for RSS XML feeds'
+    )
+    commands = parser.add_subparsers()
+
+    command_add = commands.add_parser('add')
+    command_add.add_argument('url', help='xml-feed url')
+    command_add.add_argument(
+        'shortname', help='shortname (used as foldername)'
+    )
+    command_add.set_defaults(func=commandAddPodcast)
+
+    command_update = commands.add_parser('update')
+    command_update.set_defaults(func=commandUpdateAll)
+
+    command_status = commands.add_parser('status')
+    command_status.add_argument(
+        '-n', '--new', help='show all new casts', action='store_true'
+    )
+    command_status.add_argument(
+        '-l', '--list', dest='cast_id', help='list all posts with this id'
+    )
+    command_status.add_argument(
+        '-c', '--casts', help='list all podcasts', action='store_true'
+    )
+    command_status.set_defaults(func=commandStatus)
+
+    command_get = commands.add_parser('get')
+    get_group = command_get.add_mutually_exclusive_group()
+    get_group.add_argument(
+        '-c',
+        '--casts',
+        type=int, 
+        help='one ore more cast ids to download',
+        nargs="+")
+    get_group.add_argument(
+        '-a', '--all', 
+        action='store_true',
+        help='flag to download all new podcasts'
+    )
+    get_group.add_argument(
+        '-s', '--shows', 
+        type=int,
+        help='get one particular show with this id',
+        nargs='+'
+    )
+
+    command_get.set_defaults(func=commandGet)
+
+    # parser.add_argument('-r', '--remove',    action="store", 
+    #     dest="rm_cast_id", help='Remove podcast with this id from database')
+
+    arguments = parser.parse_args(args)
+    arguments.func(arguments)
+    
+    # if arguments.update_casts:
+    #     updateAll()
+    # elif arguments.new_posts:
+    #     getNewPosts()
+    # elif arguments.dl_cast_id:
+    #     cast = getCast(arguments.dl_cast_id)
+    #     if cast:
+    #         post = cast.getLatestPosts(1)
+    #         post.download()
+    #     else:
+    #         "Cast with this id or name not found."
+    # elif arguments.feed_url:
+    #     if arguments.short_title == None:
+    #         short_title = 'no_name'
+    #     else:
+    #         short_title = arguments.short_title
+    #     addPodcast(arguments.feed_url, short_title)
+    # elif arguments.list_cast_id:
+    #     cast = getCast(arguments.list_cast_id)
+    #     if cast:
+    #         cast.listAll()
+    #     else:
+    #         "Cast with this id or name not found."
+    # elif arguments.rm_cast_id:
+    #     removeCast(arguments.rm_cast_id)
+    # elif arguments.allcasts:
+    #     list_podcasts()
+    # elif arguments.getshowID:
+    #     # print arguments.getshowID
+    #     post = Cast().getPost(int(arguments.getshowID))
+    #     post.download()
 
 def save_shortName(id, short_title):
     with DB() as dbHandler:
@@ -971,4 +1039,3 @@ def save_shortName(id, short_title):
 
 if __name__ == '__main__':
     main(sys.argv[1:])
-    # save_shortName(57, 'physikalische_soiree')
