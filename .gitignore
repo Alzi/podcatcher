@@ -2,5 +2,6 @@ html/*
 logs/*
 *.pyc
 Lib/*
-*.db
+*.sq3
 rumprobieren/*
+url_export.txt

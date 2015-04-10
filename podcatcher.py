@@ -4,9 +4,14 @@
 """
 podcatcher.py is a simple commandline tool to manage podcast feeds
 
+author:      Marc Wesemeier, Wackernheim, Germany
+date:        2014-04-17
+license:     WTFPL V2
+email:       projectleviathan@arcor.de
+status:      Development
 """
 
-import sqlite3
+# import sqlite3
 from datetime import datetime, timedelta
 from hashlib import sha256
 from thread import start_new_thread, allocate_lock
@@ -25,59 +30,7 @@ from mutagen import File as mutagen_File
 
 import feedparser
 
-__author__ = "Marc Wesemeier, Wackernheim, Germany"
-__date__ = "2014-04-17"
-__license__ = "WTFPL V2"
-__version__ = "0.0.1"
-__maintainer__ = "Marc Wesemeier"
-__email__ = "projectleviathan@arcor.de"
-__status__ = "Development"
-
-URLS = [
-"http://www.kuechenstud.io/kuechenradio/feed/mp3",
-"http://in-trockenen-buechern.de:80/feed/mp3/",
-"http://feeds.feedburner.com/WrintFerngespraeche",
-"http://feeds.feedburner.com/WrintOrtsgespraeche",
-"http://feeds.feedburner.com/WrintRealitaetsabgleich",
-"http://www.staatsbuergerkunde-podcast.de/feed/mp3-rss",
-"http://wir.muessenreden.de/feed/podcast",
-"http://spoileralert.bildungsangst.de/feed/opus",
-"http://feeds.feedburner.com/WrintHolgerRuftAn",
-"http://feeds.feedburner.com/DieWrintheit",
-"http://1337kultur.de/feed/podcast-ogg/",
-"http://web.ard.de/radiotatort/rss/podcast.xml",
-"http://www.alternativlos.org/ogg.rss",
-"http://bartocast.de/?feed=podcast",
-"http://www.hoaxilla.de/podcast/bth.xml",
-"http://feeds.feedburner.com/cre-podcast",
-"http://feeds.feedburner.com/dancarlin/history?format=xml",
-"http://feeds.feedburner.com/datenschorle?format=podcast",
-"http://feedpress.me/dbp",
-"feed://fnordfunk.de/?feed=podcast",
-"http://feeds.feedburner.com/fokus-europa-oga",
-"http://www.hoaxilla.de/podcast/hoaxilla.xml",
-"http://feeds.feedburner.com/UnbenannterPodcastberEsoterikUndhnlichen",
-"http://klabautercast.de/feed/podcast",
-"http://feeds.feedburner.com/mikrodilettanten",
-"http://feeds.feedburner.com/NotSafeForWorkPodcast",
-"http://www.psycho-talk.de/feed/oga",
-"http://feeds.feedburner.com/raumzeit-podcast",
-"http://pcast.sr-online.de/feeds/diskurs/feed.xml",
-"http://pcast.sr-online.de/feeds/fragen/feed.xml",
-"http://schallrauch.hoersuppe.de/sur/opus",
-"http://www.hoaxilla.de/podcast/skeptoskop.xml",
-"http://feeds.feedburner.com/soziopodaudio",
-"http://kaliban.podspot.de/rss",
-"http://feeds.feedburner.com/sternengeschichten",
-"http://trojaalert.bildungsangst.de/feed/opus",
-"http://feeds.feedburner.com/VorgedachtPodcast",
-"http://vorzeiten.net/opus",
-"http://www.wikigeeks.de/feed/ogg",
-"http://80erman.podcaster.de/younginthe80s.rss",
-"http://feeds.feedburner.com/MonoxydDieWahrheit",
-"http://anyca.st/feed/ogg",
-"http://n00bcore.de/feed/mp3"
-]
+from helper import log, DB
 
 AUDIO_MIME_TYPES = [
 "audio/mpeg",
@@ -101,8 +54,7 @@ DAYS_OLDER_POST = 14
 #minutes that should be between update-attempts
 UPDATE_TIME = 120   
 
-DB_PATH = "C:/Daten/Projekte/Python-Projekte/podcatcher/src/database.db"
-LOG_PATH = "logs/"
+# DB_PATH = "C:/Daten/Projekte/Python-Projekte/podcatcher/src/database.sq3"
 MEDIA_PATH = "C:/Daten/Foobar/Podcasts/"
 STATUS_UPDATE_CAST = 0
 STATUS_NOTACTIVE_CAST = 1
@@ -117,52 +69,6 @@ lock = allocate_lock()
 update_result = {}
 thread_started = False
 num_of_threads = 0
-
-
-class DB(object):
-    """simple handler of sqlite3 queries.
-    """
-    def __init__(self,filepath=DB_PATH):
-        self.conn = sqlite3.connect(filepath)
-        self.cursor = self.conn.cursor()
-
-    def __enter__(self):
-        """for using pythons with-statement.
-        """
-        return self
-
-    def __exit__(self, type, value, traceback):
-        """called after with-stamement block.
-        """
-        self.conn.close()
-
-    def getLastId(self):
-        return self.cursor.lastrowid
-
-    def sql(self, sql, parameters=()):
-        """execute query and return result if present.
-        """
-        self.cursor.execute(sql,parameters)
-        self.conn.commit()
-        return self.cursor.fetchall()
-
-class Logger(object):
-    """Simple notes- and errors-logger
-    """
-    def __init__(self):
-        logpath = os.path.join(LOG_PATH, "logs.txt")
-        self.fileHandler = open(logpath,"a")
-    
-    def __enter__(self):
-        return self
-
-    def __exit__(self, type, value, traceback):
-        self.fileHandler.close()
-
-    def write(self, data):
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.fileHandler.write("%s:\t%s\n" % (now,data))
-
 
 class Post(object):
     """Handle data corresponding to one certain show
@@ -597,15 +503,6 @@ class Cast(object):
         for row in result:
             self.allPosts[row[0]] = row[1]
 
-    # def _getMinutesSinceLastUpdate(self):
-    #     """return minutes since last update
-    #     """
-    #     with DB() as dbHandler:
-    #         last_updated = dbHandler.sql(
-    #             "SELECT last_updated FROM casts WHERE feedId=?",
-    #             (self.feedId,))
-    #     last_updated = string2DateTime(last_updated[0][0])
-
     def _fetchFeed(self):
         """Use feedparser module to get the feed-data
         from one podcast.
@@ -648,10 +545,6 @@ class Cast(object):
 #-------------------------------------------------- functions --------------------------------------------
 #------------------------------------------- -------------------------------------------------------------
 
-def log(message):
-    with Logger() as l:
-        l.write(message)
-
 def makePrintable(unprintable):
     """change unprintable characters into '-'
     """
@@ -676,8 +569,6 @@ def now(daysInThePast=0):
         now -= delta
     nowString = now.strftime("%Y-%m-%d %H:%M:%S")
     return (now,nowString)
-
-
 
 def removeCast(feedId):
     """remove cast and it's posts from database
@@ -825,18 +716,6 @@ def print_results_to_screen():
                 print "\t%s"%postTitle
             print "-----------------------------------------\n"
 
-def create_all_dirs():
-    """Create all directories according to the short_title of the Cast
-    """
-    with DB() as dbHandler:
-        results = dbHandler.sql(
-            "SELECT short_title FROM casts WHERE status=?",
-            (STATUS_UPDATE_CAST,)
-        )
-    for result in results:
-        if result[0] not in os.listdir(MEDIA_PATH):
-            os.mkdir(os.path.join(MEDIA_PATH, result[0]))
-
 #---------------------------  database helper ----------------------            
 
 def createTableCasts():
@@ -846,7 +725,7 @@ def createTableCasts():
         dbHandler.sql(
             "CREATE TABLE casts (id INTEGER PRIMARY KEY \
             AUTOINCREMENT, title TEXT, url TEXT,\
-            last_updated TEXT, status INT)"
+            last_updated TEXT, short_title TEXT, status INT)"
         )
 
 def createTableShows():
@@ -858,6 +737,27 @@ def createTableShows():
                 feed_id TEXT, title TEXT, subtitle TEXT, author TEXT, \
                 media_link TEXT, published TEXT, status INT, hash TEXT)"
         )
+
+def export_cast_urls():
+    with DB() as dbHandler:
+        result = dbHandler.sql(
+            'SELECT url, short_title FROM casts')
+    if len(result) > 0:
+        with open('url_export.txt', 'w') as fh:
+            for entry in result:
+                fh.write("{0};{1}\n".format(entry[1], entry[0]))
+
+def create_all_dirs():
+    """Create all directories according to the short_title of the Cast
+    """
+    with DB() as dbHandler:
+        results = dbHandler.sql(
+            "SELECT short_title FROM casts WHERE status=?",
+            (STATUS_UPDATE_CAST,)
+        )
+    for result in results:
+        if result[0] not in os.listdir(MEDIA_PATH):
+            os.mkdir(os.path.join(MEDIA_PATH, result[0]))
 
 #---------------------------  command-line funcs -------------------
 
@@ -941,6 +841,15 @@ def commandRemove(args):
     for cast_id in args.ids:
         removeCast(cast_id)
 
+def commandReset(args):
+    answer = raw_input('Do you really want to rewrite the database?(y/n) ')
+    if answer == 'y':
+        createTableCasts()
+        createTableShows()
+    else:
+        print 'nevermind'
+    
+
 def main(args):
     socket.setdefaulttimeout(5)
 
@@ -1006,8 +915,14 @@ def main(args):
     )
     command_remove.set_defaults(func=commandRemove)
 
+    #command reset
+    command_reset = commands.add_parser('reset')
+    command_reset.set_defaults(func=commandReset)    
+
     arguments = parser.parse_args(args)
     arguments.func(arguments)
     
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    # main(sys.argv[1:])
+    # export_cast_urls()
+    log('good day!')
