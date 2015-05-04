@@ -12,10 +12,11 @@ status:      Development
 """
 
 # import sqlite3
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from hashlib import sha256
 from thread import start_new_thread, allocate_lock
 import urllib2
+import time
 import socket
 import sys
 import os
@@ -29,6 +30,7 @@ from mutagen.mp4 import MP4
 from mutagen import File as mutagen_File
 
 import feedparser
+import db
 
 from helper import log, DB
 
@@ -45,7 +47,8 @@ AUDIO_MIME_TYPES = [
 
 KNOWN_MIME_TYPES = [
 "text/html",
-"video/mpeg"
+"video/mpeg",
+"no_type"
 ]
 
 #set STATUS_OLDER_POST if post is > this days old
@@ -97,7 +100,6 @@ class Post(object):
         self.author = self._getAuthor()
         self.published = self._getPublished()
         self.media_link = self._extractMediaLinks() 
-        #TODO: multiple Media-Links aren't handled
         self.hash = self._getHash()
         self.status = STATUS_NEW_POST
         self.daysOld = self._getDaysSincePublished()
@@ -286,21 +288,15 @@ class Post(object):
         self.mediaLinks = []
         newTypes = set()
         for link in self.entry.links:
-            linktype = ''
-            try:
-                linktype = link.type
-            except:
-                pass
-            # print linktype
+            linktype = 'no_audio'
+            linktype = link.get('type', 'no_type')
             if linktype in AUDIO_MIME_TYPES:
                 self.mediaLinks.append((link.href,linktype))
                 self.has_audio = True
-            elif linktype in KNOWN_MIME_TYPES:
-                pass
-            else:
+            elif linktype not in KNOWN_MIME_TYPES:
                 newTypes.add(linktype)
         if newTypes:
-            log("New MimeType(s) found:\n%s" % newTypes)
+            print("New MimeType(s) found:\n%s" % newTypes)
         if not self.mediaLinks:
             self.has_audio = False
             return "no audio"
@@ -345,6 +341,25 @@ class Post(object):
         return m.hexdigest()
 
 
+class Podcast(object):
+    """rewrite of old 'Cast' class
+    """
+    def __init__(self, cast_id):
+        self.cast_id = cast_id
+        self.data = db.get_cast_data(cast_id)
+        rss = feedparser.parse(self.data['url'])
+        title = rss.feed.get('title', 'noTitle')
+        updated = rss.feed.get('updated_parsed', 'noDate')
+        logo = rss.feed.get('logo', 'noLogo')
+        image = rss.feed.get('image', 'noImage')
+
+        print (title, time.strftime("%Y-%m-%d %H:%M:%S", updated), logo, image)
+        print (rss.entries[0].get('title', 'no_title'))
+        print (rss.entries[1].get('title', 'no_title').encode('utf-8'))
+
+
+
+
 class Cast(object):
     """Handle all data corresponding to a cast
     """
@@ -356,6 +371,25 @@ class Cast(object):
             self.title = self._getTitle()
             self.short_title = self._get_short_title()
             self._getAllPosts()
+
+    def get_image(self):
+        """check for image and download it to folder as
+        'cover.jpg'"""
+        self.rss = self._fetchFeed()
+        image = self.rss.feed.get('image', None)
+        if image:
+            image_path = image.get('href', None)
+            if image_path:
+                data = downloadAudio(image_path)
+                target_path = os.path.join(
+                    MEDIA_PATH, 
+                    self.short_title,
+                    'cover.jpg')
+                with open (target_path,"wb") as fh:
+                    fh.write(data)
+                print ('Image saved under: \n%s' % target_path)
+        else:
+            print ('No Image found')
 
     def getLatestPost(self):
         """alias-function to get the single latest post
@@ -440,12 +474,12 @@ class Cast(object):
         numOfUpdates = 0
 
         for entry in self.rss.entries:
-            try:
-                post = Post(self.feedId)
-                post.fromRssEntry(entry)
-            except:
-                print ("{}creating Post failed [{}]".format("\n", self.feedId))
-                print (sys.exc_info())
+            post = Post(self.feedId)
+            post.fromRssEntry(entry)
+            # try:
+            # except:
+            #     print ("{}creating Post failed [{}]".format("\n", self.feedId))
+            #     print (sys.exc_info())
             if not self._isInsideDB(post):
                 numOfUpdates += 1
                 lock.acquire()
@@ -608,7 +642,7 @@ def list_podcasts():
     """
     casts = get_active_podcasts()
     for cast in casts:
-        print "(%d) %s" % (cast[0], makePrintable(cast[1]))
+        print "(%03d) %s" % (cast[0], makePrintable(cast[1]))
 
 def progressReport(bytesSoFar, chunkSize, totalSize):
     """Write download-progress to stdout.
@@ -625,7 +659,8 @@ def progressReport(bytesSoFar, chunkSize, totalSize):
 def downloadAudio(url, chunkSize=32768):
     """Download audio-data via http.
     """
-    response = urllib2.urlopen(url, None, 5)
+    requ = urllib2.Request(url, headers={'User-Agent':'Fussels Podcatcher'})
+    response = urllib2.urlopen(requ, None, 5)
     totalSize = response.info().getheader('Content-Length').strip()
     totalSize = int(totalSize)
     bytesSoFar = 0
@@ -836,6 +871,10 @@ def commandGet(args):
         for show_id in args.shows:
             post = Cast().getPost(show_id)
             post.download()
+    
+    elif args.image:
+        cast = Cast(args.image)
+        cast.get_image()
 
 def commandRemove(args):
     for cast_id in args.ids:
@@ -862,7 +901,7 @@ def main(args):
     command_add = commands.add_parser('add')
     command_add.add_argument('url', help='xml-feed url')
     command_add.add_argument(
-        'shortname', help='shortname (used as foldername)'
+        'short_title', help='shortname (used as foldername)'
     )
     command_add.set_defaults(func=commandAddPodcast)
 
@@ -903,6 +942,11 @@ def main(args):
         help='get one particular show with this id',
         nargs='+'
     )
+    get_group.add_argument(
+        '-i', '--image', 
+        type=int,
+        help='get image of the show with this id',
+    )
     command_get.set_defaults(func=commandGet)
 
     #command remove
@@ -925,4 +969,7 @@ def main(args):
 if __name__ == '__main__':
     main(sys.argv[1:])
     # export_cast_urls()
-    # log('good day!')
+    # log('good day!')^
+    # cast = Podcast(9)
+    # print cast.data['short_title']
+
