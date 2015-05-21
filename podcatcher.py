@@ -840,6 +840,7 @@ def commandAddPodcast(args):
             feedId = dbHandler.getLastId()
         cast = Cast(feedId)
         cast.update()
+        cast.get_image()
 
 def commandStatus(args):
     if args.new:
