@@ -372,6 +372,11 @@ class Cast(object):
             self.short_title = self._get_short_title()
             self._getAllPosts()
 
+    def change_url(self, new_url):
+        """change url of this cast inside DB
+        """
+        db.change_feed_url(self.feedId, new_url)
+
     def get_image(self):
         """check for image and download it to folder as
         'cover.jpg'"""
@@ -800,22 +805,33 @@ def commandUpdateAll(args):
     """update all podcasts with the status_flag set to STATUS_UPDATE_CAST
     """
     global update_result, thread_started, num_of_threads
-    print("updating podcasts...")
-    castsToUpdate = get_active_podcasts()
-    allThreads = []
-    for data in castsToUpdate:
-        feedId = data[0]
-        cast = Cast(feedId)
-        start_new_thread(cast.update,())
+    
+    if (args.feedId == 'all'):
+        print("updating podcasts...")
+        castsToUpdate = get_active_podcasts()
+        allThreads = []
+        for data in castsToUpdate:
+            feedId = data[0]
+            cast = Cast(feedId)
+            start_new_thread(cast.update,())
 
-    while not thread_started:
-        pass
+        while not thread_started:
+            pass
 
-    while num_of_threads > 0:
-        pass
-
+        while num_of_threads > 0:
+            pass
+    else:
+        cast = Cast(args.feedId)
+        cast.update()
+        
     print("\nready.")
     print_results_to_screen()
+
+def updateCast(args):
+   """Update only one crertain cast
+   """
+   cast = Cast(args.feedId)
+   cast.update()
 
 def commandAddPodcast(args):
     """add a new feed-url to database
@@ -841,6 +857,13 @@ def commandAddPodcast(args):
         cast = Cast(feedId)
         cast.update()
         cast.get_image()
+
+def commandChangeUrl(args):
+    """change url of stored feed
+    """
+    cast = Cast(args.id)
+    cast.change_url(args.new_url)
+    # print args.id, args.new_url
 
 def commandStatus(args):
     if args.new:
@@ -908,6 +931,9 @@ def main(args):
 
     #command update
     command_update = commands.add_parser('update')
+    command_update.add_argument(
+        'feedId', 
+        help='feed-id to update or \'all\'')
     command_update.set_defaults(func=commandUpdateAll)
     
     #command status
@@ -950,6 +976,12 @@ def main(args):
     )
     command_get.set_defaults(func=commandGet)
 
+    #command changeUrl
+    command_change = commands.add_parser('change_url')
+    command_change.add_argument( 'id', help='change url of this cast-id')
+    command_change.add_argument('new_url', help='new feed-url')
+    command_change.set_defaults(func=commandChangeUrl)
+    
     #command remove
     command_remove = commands.add_parser('remove')
     command_remove.add_argument(

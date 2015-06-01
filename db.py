@@ -84,3 +84,10 @@ def get_ids_for_update(status):
             'SELECT id from casts WHERE status = ?',
             str(STATUS_UPDATE))
 
+def change_feed_url(cast_id, new_url):
+    with DB() as db_handler:
+        result = db_handler.sql(
+            'UPDATE casts SET url=? WHERE id=?',
+            (new_url, cast_id)
+        )
+
