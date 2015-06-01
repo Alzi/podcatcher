@@ -386,6 +386,9 @@ class Cast(object):
             image_path = image.get('href', None)
             if image_path:
                 data = downloadAudio(image_path)
+                # newly added casts have no folder yet
+                if self.short_title not in os.listdir(MEDIA_PATH):
+                    os.mkdir(os.path.join(MEDIA_PATH, self.short_title))
                 target_path = os.path.join(
                     MEDIA_PATH, 
                     self.short_title,
@@ -823,7 +826,7 @@ def commandUpdateAll(args):
     else:
         cast = Cast(args.feedId)
         cast.update()
-        
+
     print("\nready.")
     print_results_to_screen()
 
